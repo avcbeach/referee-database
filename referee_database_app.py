@@ -956,7 +956,7 @@ def page_admin_events():
             events = pd.concat([events, new_ev], ignore_index=True)
             save_events(events)
             st.success("Event added ✅")
-            st.experimental_rerun()
+            st.rerun()
 
     # --- EXISTING EVENTS TABLE ---
     st.markdown("### Existing events")
@@ -1053,7 +1053,7 @@ def page_admin_events():
 
                     save_events(events)
                     st.success("Event updated ✅")
-                    st.experimental_rerun()
+                    st.rerun()
 
             st.markdown("#### 🗑️ Delete this event")
             st.warning(
@@ -1073,7 +1073,7 @@ def page_admin_events():
                     save_availability(avail)
 
                 st.success("Event deleted ✅")
-                st.experimental_rerun()
+                st.rerun()
 
 
 # =========================
