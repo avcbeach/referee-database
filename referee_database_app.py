@@ -79,6 +79,7 @@ def _github_api_url(cfg, path):
 def github_read_file(path):
     """
     Read a file from GitHub repo. Returns bytes or None.
+    `path` should be repo-relative, e.g. "data/photos/xxx.jpg"
     """
     cfg = github_config()
     if not cfg:
@@ -262,7 +263,29 @@ AVAIL_COLS = [
 
 
 def load_referees():
-    return load_csv(REFEREES_FILE, REFEREE_COLS)
+    df = load_csv(REFEREES_FILE, REFEREE_COLS)
+
+    # Sync photo & passport files from GitHub if missing locally
+    cfg = github_config()
+    if cfg and not df.empty:
+        for _, r in df.iterrows():
+            for col in ["photo_file", "passport_file"]:
+                rel = r.get(col, "")
+                if isinstance(rel, str) and rel:
+                    local_path = os.path.join(DATA_DIR, rel)
+                    if not os.path.exists(local_path):
+                        # On GitHub, we stored it as "data/<rel>"
+                        remote_path = os.path.join(DATA_DIR, rel).replace("\\", "/")
+                        content = github_read_file(remote_path)
+                        if content is not None:
+                            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                            try:
+                                with open(local_path, "wb") as f:
+                                    f.write(content)
+                            except Exception:
+                                pass
+
+    return df
 
 
 def save_referees(df):
@@ -708,25 +731,21 @@ def page_referee_search():
         st.info("No referees match these filters.")
         return
 
-    # Build view with photo thumbnails (not stored in CSV, only for display)
+    # Build view with photo paths
     view = df.copy()
 
-    # Create Photo column of bytes or empty
-    photo_bytes = []
+    photo_paths = []
     for _, r in view.iterrows():
         p = r.get("photo_file", "")
         if isinstance(p, str) and p:
             full_path = os.path.join(DATA_DIR, p)
             if os.path.exists(full_path):
-                try:
-                    with open(full_path, "rb") as f:
-                        photo_bytes.append(f.read())
-                    continue
-                except Exception:
-                    pass
-        photo_bytes.append(None)
-
-    view["Photo"] = photo_bytes
+                photo_paths.append(full_path)
+            else:
+                photo_paths.append(None)
+        else:
+            photo_paths.append(None)
+    view["Photo"] = photo_paths
 
     # Reorder columns for display
     display_cols = [
@@ -786,6 +805,93 @@ def page_referee_search():
             "course_year": st.column_config.TextColumn("Course year"),
         },
     )
+
+    # ---------- Profile view ----------
+    st.markdown("---")
+    st.subheader("👁️ View Referee Profile")
+
+    # Build options
+    df = df.sort_values(["last_name", "first_name"])
+    options = []
+    mapping = {}
+    for _, r in df.iterrows():
+        label = f"{r['first_name']} {r['last_name']} ({r['nationality']})"
+        options.append(label)
+        mapping[label] = r["ref_id"]
+
+    if not options:
+        st.info("No referees to show.")
+        return
+
+    sel_label = st.selectbox("Select a referee", options)
+    sel_id = mapping[sel_label]
+    prof = refs[refs["ref_id"] == sel_id].iloc[0]
+
+    colL, colR = st.columns([2, 1])
+
+    with colL:
+        st.markdown(f"### {prof['first_name']} {prof['last_name']}")
+        st.write(f"**Gender:** {prof['gender']}")
+        st.write(f"**Nationality:** {prof['nationality']}")
+        st.write(f"**Zone:** {prof['zone']}")
+        st.write(f"**Position:** {prof['position_type']}")
+        if prof["position_type"] == "Control Committee":
+            st.write(f"**CC Role:** {prof['cc_role']}")
+        if prof["position_type"] == "Referee":
+            st.write(f"**Referee level:** {prof['ref_level']}")
+        st.write(f"**Type:** {prof['type']}")
+        st.write(f"**Shirt size:** {prof['shirt_size']}")
+        st.write(f"**Shorts size:** {prof['shorts_size']}")
+        st.write(f"**Birthdate:** {prof['birthdate']}")
+        st.write(f"**Course year:** {prof['course_year']}")
+        st.write(f"**FIVB ID:** {prof['fivb_id']}")
+        st.write(f"**Origin airport:** {prof['origin_airport']}")
+        st.write(f"**Email:** {prof['email']}")
+        st.write(f"**Phone:** {prof['phone']}")
+        st.write(f"**Active:** {prof['active']}")
+
+    with colR:
+        st.markdown("#### Photo ID")
+        photo_rel = prof.get("photo_file", "")
+        if isinstance(photo_rel, str) and photo_rel:
+            photo_path = os.path.join(DATA_DIR, photo_rel)
+            if os.path.exists(photo_path):
+                st.image(photo_path, use_container_width=True)
+            else:
+                st.caption("Photo path saved, but file not found locally.")
+        else:
+            st.caption("No photo uploaded.")
+
+        st.markdown("#### Passport")
+        pass_rel = prof.get("passport_file", "")
+        if isinstance(pass_rel, str) and pass_rel:
+            pass_path = os.path.join(DATA_DIR, pass_rel)
+            if os.path.exists(pass_path):
+                ext = os.path.splitext(pass_path)[1].lower()
+                try:
+                    with open(pass_path, "rb") as f:
+                        data = f.read()
+                    if ext in [".jpg", ".jpeg", ".png"]:
+                        st.image(pass_path, caption="Passport image", use_container_width=True)
+                    elif ext == ".pdf":
+                        st.download_button(
+                            "Download passport (PDF)",
+                            data=data,
+                            file_name=os.path.basename(pass_path),
+                            mime="application/pdf",
+                        )
+                    else:
+                        st.download_button(
+                            "Download passport file",
+                            data=data,
+                            file_name=os.path.basename(pass_path),
+                        )
+                except Exception:
+                    st.caption("Passport path saved, but file could not be opened.")
+            else:
+                st.caption("Passport path saved, but file not found locally.")
+        else:
+            st.caption("No passport uploaded.")
 
 
 # =========================
