@@ -242,6 +242,7 @@ REFEREE_COLS = [
     "type",
 ]
 
+# UPDATED: add destination_airport, arrival_date, departure_date
 EVENT_COLS = [
     "event_id",
     "season",
@@ -249,6 +250,9 @@ EVENT_COLS = [
     "end_date",
     "event_name",
     "location",
+    "destination_airport",
+    "arrival_date",
+    "departure_date",
 ]
 
 AVAIL_COLS = [
@@ -295,7 +299,8 @@ def save_referees(df):
 def load_events():
     df = load_csv(EVENTS_FILE, EVENT_COLS)
     if not df.empty:
-        for col in ["start_date", "end_date"]:
+        # parse date columns as strings "YYYY-MM-DD" (or "NaT")
+        for col in ["start_date", "end_date", "arrival_date", "departure_date"]:
             df[col] = pd.to_datetime(df[col], errors="coerce").dt.date.astype(str)
     return df
 
@@ -314,6 +319,17 @@ def save_availability(df):
 
 def referee_display_name(row):
     return f"{row['first_name']} {row['last_name']}".strip()
+
+
+def _parse_date_str(s, fallback):
+    """Helper: safe parse date string to datetime.date with fallback."""
+    try:
+        s = str(s)
+        if not s or s == "NaT":
+            return fallback
+        return datetime.fromisoformat(s).date()
+    except Exception:
+        return fallback
 
 
 # =========================
@@ -874,7 +890,7 @@ def page_referee_search():
 
 
 # =========================
-# PAGE 2: ADMIN – EVENTS
+# PAGE 2: ADMIN – EVENTS (now with edit + delete + extra fields)
 # =========================
 
 def page_admin_events():
@@ -882,8 +898,9 @@ def page_admin_events():
 
     events = load_events()
 
-    st.markdown("Use this page to **add events** for each year/season.")
+    st.markdown("Use this page to **add, edit, or delete events** for each year/season.")
 
+    # --- ADD EVENT FORM ---
     with st.form("event_form"):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -893,8 +910,28 @@ def page_admin_events():
         with c3:
             end_date = st.date_input("End date", value=date.today())
 
-        location = st.text_input("Location (city/country)", value="")
-        ev_name = st.text_input("Event name", value="")
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            location = st.text_input("Location (city/country)", value="")
+        with c5:
+            ev_name = st.text_input("Event name", value="")
+        with c6:
+            destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
+
+        c7, c8, _ = st.columns(3)
+        with c7:
+            arrival_date = st.date_input(
+                "Arrival date",
+                value=start_date,
+                help="Recommended arrival date for officials",
+            )
+        with c8:
+            departure_date = st.date_input(
+                "Departure date",
+                value=end_date,
+                help="Recommended departure date for officials",
+            )
+
         submitted = st.form_submit_button("➕ Add event")
 
     if submitted:
@@ -902,6 +939,8 @@ def page_admin_events():
             st.error("Please enter event name.")
         elif end_date < start_date:
             st.error("End date must be on or after the start date.")
+        elif departure_date < arrival_date:
+            st.error("Departure date must be on or after the arrival date.")
         else:
             new_ev = pd.DataFrame([{
                 "event_id": new_id(),
@@ -910,11 +949,16 @@ def page_admin_events():
                 "end_date": end_date.isoformat(),
                 "event_name": ev_name.strip(),
                 "location": location.strip(),
+                "destination_airport": destination_airport.strip(),
+                "arrival_date": arrival_date.isoformat(),
+                "departure_date": departure_date.isoformat(),
             }])
             events = pd.concat([events, new_ev], ignore_index=True)
             save_events(events)
             st.success("Event added ✅")
+            st.experimental_rerun()
 
+    # --- EXISTING EVENTS TABLE ---
     st.markdown("### Existing events")
     if events.empty:
         st.info("No events yet.")
@@ -922,6 +966,114 @@ def page_admin_events():
         events_disp = events.copy()
         events_disp = events_disp.sort_values(["season", "start_date", "event_name"])
         st.dataframe(events_disp, use_container_width=True)
+
+    # --- EDIT / DELETE EVENT ---
+    if not events.empty:
+        st.markdown("---")
+        st.subheader("✏️ Edit / 🗑️ Delete event")
+
+        # Build selection list
+        events_sorted = events.sort_values(["season", "start_date", "event_name"])
+        labels = []
+        id_map = {}
+        for _, r in events_sorted.iterrows():
+            s = str(r["season"])
+            sd = str(r["start_date"])
+            ed = str(r["end_date"])
+            nm = str(r["event_name"])
+            loc = str(r["location"])
+            label = f"{s} – {sd} to {ed} – {nm} ({loc})"
+            labels.append(label)
+            id_map[label] = r["event_id"]
+
+        sel_label = st.selectbox("Select event to edit/delete", ["(None)"] + labels)
+        if sel_label != "(None)":
+            ev_id = id_map[sel_label]
+            ev_row = events[events["event_id"] == ev_id].iloc[0]
+
+            st.markdown("#### Edit event")
+
+            with st.form("edit_event_form"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    season_edit = st.text_input("Season", value=str(ev_row["season"]))
+                with c2:
+                    sd_edit = st.date_input(
+                        "Start date",
+                        value=_parse_date_str(ev_row["start_date"], date.today()),
+                    )
+                with c3:
+                    ed_edit = st.date_input(
+                        "End date",
+                        value=_parse_date_str(ev_row["end_date"], date.today()),
+                    )
+
+                c4, c5, c6 = st.columns(3)
+                with c4:
+                    loc_edit = st.text_input("Location (city/country)", value=str(ev_row["location"]))
+                with c5:
+                    name_edit = st.text_input("Event name", value=str(ev_row["event_name"]))
+                with c6:
+                    dest_edit = st.text_input(
+                        "Destination airport (e.g. BKK, DOH)",
+                        value=str(ev_row.get("destination_airport", "")),
+                    )
+
+                c7, c8, _ = st.columns(3)
+                with c7:
+                    arr_edit = st.date_input(
+                        "Arrival date",
+                        value=_parse_date_str(ev_row.get("arrival_date", ""), sd_edit),
+                    )
+                with c8:
+                    dep_edit = st.date_input(
+                        "Departure date",
+                        value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit),
+                    )
+
+                save_btn = st.form_submit_button("💾 Save changes")
+
+            if save_btn:
+                if not name_edit.strip():
+                    st.error("Please enter event name.")
+                elif ed_edit < sd_edit:
+                    st.error("End date must be on or after start date.")
+                elif dep_edit < arr_edit:
+                    st.error("Departure date must be on or after arrival date.")
+                else:
+                    idx = events[events["event_id"] == ev_id].index[0]
+                    events.loc[idx, "season"] = str(season_edit).strip()
+                    events.loc[idx, "start_date"] = sd_edit.isoformat()
+                    events.loc[idx, "end_date"] = ed_edit.isoformat()
+                    events.loc[idx, "event_name"] = name_edit.strip()
+                    events.loc[idx, "location"] = loc_edit.strip()
+                    events.loc[idx, "destination_airport"] = dest_edit.strip()
+                    events.loc[idx, "arrival_date"] = arr_edit.isoformat()
+                    events.loc[idx, "departure_date"] = dep_edit.isoformat()
+
+                    save_events(events)
+                    st.success("Event updated ✅")
+                    st.experimental_rerun()
+
+            st.markdown("#### 🗑️ Delete this event")
+            st.warning(
+                "Deleting this event will also remove all **availability records** linked to it.\n"
+                "This action cannot be undone."
+            )
+            confirm_del = st.checkbox("Yes, delete this event permanently.")
+            if st.button("🗑️ Delete event") and confirm_del:
+                # delete from events
+                events = events[events["event_id"] != ev_id]
+                save_events(events)
+
+                # also delete availability rows for this event
+                avail = load_availability()
+                if not avail.empty:
+                    avail = avail[avail["event_id"] != ev_id]
+                    save_availability(avail)
+
+                st.success("Event deleted ✅")
+                st.experimental_rerun()
 
 
 # =========================
