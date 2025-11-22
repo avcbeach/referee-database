@@ -1,2 +1,2 @@
 ref_id,first_name,last_name,gender,nationality,zone,birthdate,fivb_id,email,phone,origin_airport,position_type,cc_role,ref_level,course_year,photo_file,passport_file,active,type,display,shirt_size,shorts_size
-8c9860bd-2042-4584-bf7a-37e6a6cf7298,Leijun,Wang,Male,CHN,,1967-01-30,150665,"wlj_tw@163.com, 101680411@qq.com",,,Control Committee,Referee Coach,,,photos/8c9860bd-2042-4584-bf7a-37e6a6cf7298.jpg,passports/8c9860bd-2042-4584-bf7a-37e6a6cf7298.jpg,True,Beach,,3XL,3XL
+8c9860bd-2042-4584-bf7a-37e6a6cf7298,Leijun,Wang,Male,CHN,E,1967-01-30,150665,"wlj_tw@163.com, 101680411@qq.com",,,Control Committee,Referee Coach,,,photos/8c9860bd-2042-4584-bf7a-37e6a6cf7298.jpg,passports/8c9860bd-2042-4584-bf7a-37e6a6cf7298.jpg,True,Beach,Leijun Wang,3XL,3XL
