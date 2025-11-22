@@ -24,6 +24,7 @@ PASS_DIR = os.path.join(DATA_DIR, "passports")
 REFEREES_FILE = os.path.join(DATA_DIR, "referees.csv")
 EVENTS_FILE = os.path.join(DATA_DIR, "events.csv")
 AVAIL_FILE = os.path.join(DATA_DIR, "availability.csv")
+ASSIGN_FILE = os.path.join(DATA_DIR, "assignments.csv")  # nominations/appointments
 
 GENDERS = ["", "Male", "Female"]
 ZONES = ["", "E", "W", "SEA", "O", "C"]
@@ -242,7 +243,6 @@ REFEREE_COLS = [
     "type",
 ]
 
-# UPDATED: add destination_airport, arrival_date, departure_date
 EVENT_COLS = [
     "event_id",
     "season",
@@ -263,6 +263,13 @@ AVAIL_COLS = [
     "available",
     "airfare_estimate",
     "timestamp",
+]
+
+ASSIGN_COLS = [
+    "assign_id",
+    "ref_id",
+    "event_id",
+    "position",
 ]
 
 
@@ -299,7 +306,7 @@ def save_referees(df):
 def load_events():
     df = load_csv(EVENTS_FILE, EVENT_COLS)
     if not df.empty:
-        # parse date columns as strings "YYYY-MM-DD" (or "NaT")
+        # normalize date columns as strings YYYY-MM-DD
         for col in ["start_date", "end_date", "arrival_date", "departure_date"]:
             df[col] = pd.to_datetime(df[col], errors="coerce").dt.date.astype(str)
     return df
@@ -315,6 +322,14 @@ def load_availability():
 
 def save_availability(df):
     save_csv(AVAIL_FILE, df)
+
+
+def load_assignments():
+    return load_csv(ASSIGN_FILE, ASSIGN_COLS)
+
+
+def save_assignments(df):
+    save_csv(ASSIGN_FILE, df)
 
 
 def referee_display_name(row):
@@ -333,13 +348,68 @@ def _parse_date_str(s, fallback):
 
 
 # =========================
+# ADMIN AUTH HELPERS
+# =========================
+
+def init_admin_session():
+    """Initialize is_admin flag depending on whether an admin password is configured."""
+    if "is_admin" not in st.session_state:
+        try:
+            _ = st.secrets["auth"]["admin_password"]
+            # password configured → default not admin
+            st.session_state["is_admin"] = False
+        except Exception:
+            # no password configured → open mode (local dev, etc.)
+            st.session_state["is_admin"] = True
+
+
+def admin_login_box():
+    """Render admin login / logout controls in sidebar."""
+    init_admin_session()
+
+    try:
+        admin_pwd = st.secrets["auth"]["admin_password"]
+    except Exception:
+        # No password configured = open admin mode
+        st.sidebar.info("Admin password not configured; admin pages are unlocked (open mode).")
+        return
+
+    if st.session_state.get("is_admin", False):
+        st.sidebar.success("Admin mode")
+        if st.sidebar.button("Log out"):
+            st.session_state["is_admin"] = False
+            st.rerun()
+    else:
+        with st.sidebar.expander("🔑 Admin login"):
+            pwd = st.text_input("Password", type="password", key="admin_pwd_input")
+            if st.button("Login", key="admin_login_btn"):
+                if pwd == admin_pwd:
+                    st.session_state["is_admin"] = True
+                    st.success("Login successful.")
+                    st.rerun()
+                else:
+                    st.error("Incorrect password.")
+
+
+def require_admin():
+    """Protect an admin page. Call at the top of admin-only pages."""
+    init_admin_session()
+    if not st.session_state.get("is_admin", False):
+        st.error("This page is for admin only. Please log in as admin from the sidebar.")
+        st.stop()
+
+
+# =========================
 # PAGE 1: ADMIN – REFEREES
 # =========================
 
 def page_admin_referees():
+    require_admin()
     st.title("👤 Admin – Referees & Officials")
 
     refs = load_referees()
+    events = load_events()
+    assignments = load_assignments()
 
     st.markdown("Use this page to **add or edit referees and officials**.")
 
@@ -602,7 +672,8 @@ def page_admin_referees():
             "You are about to permanently delete **%s**.\n\n"
             "This will remove:\n"
             "- Their personal details\n"
-            "- All availability submissions linked to this referee\n\n"
+            "- All availability submissions linked to this referee\n"
+            "- All event nominations linked to this referee\n\n"
             "This action cannot be undone." % ref_name
         )
 
@@ -617,6 +688,10 @@ def page_admin_referees():
             if not avail.empty:
                 avail = avail[avail["ref_id"] != row["ref_id"]]
                 save_availability(avail)
+
+            # Remove all assignments for this referee
+            assignments = assignments[assignments["ref_id"] != row["ref_id"]]
+            save_assignments(assignments)
 
             # Remove local files (we leave GitHub files as archive for safety)
             photo_path = row.get("photo_file", "")
@@ -634,6 +709,132 @@ def page_admin_referees():
             save_referees(refs)
             st.success("Referee deleted successfully ✅")
             st.rerun()
+
+    # --- EVENT NOMINATIONS PER REFEREE ---
+    if row is not None:
+        st.markdown("---")
+        st.subheader("📋 Event nominations for this referee")
+
+        events = load_events()
+        assignments = load_assignments()
+
+        if events.empty:
+            st.info("No events in the system yet. Add events on the 'Admin – Events' page.")
+        else:
+            # Existing nominations
+            ref_assign = assignments[assignments["ref_id"] == row["ref_id"]].copy()
+            if not ref_assign.empty:
+                ev_small = events[[
+                    "event_id",
+                    "season",
+                    "start_date",
+                    "end_date",
+                    "event_name",
+                    "location",
+                    "destination_airport",
+                    "arrival_date",
+                    "departure_date",
+                ]].copy()
+                merged = ref_assign.merge(ev_small, on="event_id", how="left")
+                # Hide IDs
+                display_cols = [
+                    "season",
+                    "start_date",
+                    "end_date",
+                    "event_name",
+                    "location",
+                    "destination_airport",
+                    "arrival_date",
+                    "departure_date",
+                    "position",
+                ]
+                st.markdown("**Current nominations / appointments:**")
+                st.dataframe(
+                    merged[display_cols].sort_values(["season", "start_date", "event_name"]),
+                    use_container_width=True,
+                )
+            else:
+                st.info("No nominations assigned to this referee yet.")
+
+            st.markdown("#### ➕ Add nomination / appointment")
+
+            # Filter by season for convenience
+            seasons = sorted(events["season"].unique())
+            season_filter = st.selectbox(
+                "Filter events by season",
+                ["All"] + seasons,
+                key="assign_season_filter",
+            )
+
+            if season_filter == "All":
+                ev_filtered = events.copy()
+            else:
+                ev_filtered = events[events["season"] == season_filter].copy()
+
+            if ev_filtered.empty:
+                st.info("No events for this filter.")
+            else:
+                ev_filtered = ev_filtered.sort_values(["season", "start_date", "event_name"])
+                labels = []
+                mapping_ev = {}
+                for _, ev in ev_filtered.iterrows():
+                    label = f"{ev['season']} – {ev['start_date']} to {ev['end_date']} – {ev['event_name']} ({ev['location']})"
+                    labels.append(label)
+                    mapping_ev[label] = ev["event_id"]
+
+                with st.form("add_assign_form"):
+                    ev_label = st.selectbox("Select event", labels)
+                    position = st.text_input("Position (e.g. 1st Referee, 2nd Referee, TD, etc.)", value="")
+                    submit_assign = st.form_submit_button("💾 Add nomination")
+
+                if submit_assign:
+                    ev_id = mapping_ev[ev_label]
+                    if not position.strip():
+                        st.error("Please input position.")
+                    else:
+                        # avoid exact duplicate (same ref_id + event_id + position)
+                        dup = assignments[
+                            (assignments["ref_id"] == row["ref_id"]) &
+                            (assignments["event_id"] == ev_id) &
+                            (assignments["position"] == position.strip())
+                        ]
+                        if not dup.empty:
+                            st.warning("This nomination already exists.")
+                        else:
+                            new_as = pd.DataFrame([{
+                                "assign_id": new_id(),
+                                "ref_id": row["ref_id"],
+                                "event_id": ev_id,
+                                "position": position.strip(),
+                            }])
+                            assignments = pd.concat([assignments, new_as], ignore_index=True)
+                            save_assignments(assignments)
+                            st.success("Nomination added ✅")
+                            st.rerun()
+
+            # Delete nomination
+            st.markdown("#### 🗑️ Remove a nomination")
+            ref_assign2 = assignments[assignments["ref_id"] == row["ref_id"]].copy()
+            if ref_assign2.empty:
+                st.caption("No nominations to delete.")
+            else:
+                ev_small2 = events[["event_id", "season", "start_date", "end_date", "event_name", "location"]].copy()
+                merged2 = ref_assign2.merge(ev_small2, on="event_id", how="left")
+                labels2 = []
+                id_map2 = {}
+                for _, r2 in merged2.iterrows():
+                    label2 = f"{r2['season']} – {r2['start_date']} to {r2['end_date']} – {r2['event_name']} ({r2['location']}) – {r2['position']}"
+                    labels2.append(label2)
+                    id_map2[label2] = r2["assign_id"]
+
+                sel_del = st.selectbox("Select nomination to remove", ["(None)"] + labels2)
+                if sel_del != "(None)":
+                    if st.button("Delete selected nomination"):
+                        ass_id = id_map2[sel_del]
+                        assignments = assignments[assignments["assign_id"] != ass_id]
+                        save_assignments(assignments)
+                        st.success("Nomination removed ✅")
+                        st.rerun()
 
     # Quick listing
     st.markdown("---")
@@ -796,7 +997,7 @@ If an imported row has a FIVB ID that already exists, it will be **skipped**.
 
 
 # =========================
-# PAGE 1b: REFEREE SEARCH (PROFILE ONLY)
+# PAGE 1b: REFEREE SEARCH (PROFILE ONLY) – PUBLIC
 # =========================
 
 def page_referee_search():
@@ -890,10 +1091,11 @@ def page_referee_search():
 
 
 # =========================
-# PAGE 2: ADMIN – EVENTS (now with edit + delete + extra fields)
+# PAGE 2: ADMIN – EVENTS
 # =========================
 
 def page_admin_events():
+    require_admin()
     st.title("📅 Admin – Events per Season")
 
     events = load_events()
@@ -965,7 +1167,9 @@ def page_admin_events():
     else:
         events_disp = events.copy()
         events_disp = events_disp.sort_values(["season", "start_date", "event_name"])
-        st.dataframe(events_disp, use_container_width=True)
+        # Hide event_id from view
+        display_cols = [c for c in events_disp.columns if c != "event_id"]
+        st.dataframe(events_disp[display_cols], use_container_width=True)
 
     # --- EDIT / DELETE EVENT ---
     if not events.empty:
@@ -1057,7 +1261,7 @@ def page_admin_events():
 
             st.markdown("#### 🗑️ Delete this event")
             st.warning(
-                "Deleting this event will also remove all **availability records** linked to it.\n"
+                "Deleting this event will also remove all **availability records** and **nominations** linked to it.\n"
                 "This action cannot be undone."
             )
             confirm_del = st.checkbox("Yes, delete this event permanently.")
@@ -1072,12 +1276,18 @@ def page_admin_events():
                     avail = avail[avail["event_id"] != ev_id]
                     save_availability(avail)
 
+                # also delete assignments rows for this event
+                assignments = load_assignments()
+                if not assignments.empty:
+                    assignments = assignments[assignments["event_id"] != ev_id]
+                    save_assignments(assignments)
+
                 st.success("Event deleted ✅")
                 st.rerun()
 
 
 # =========================
-# PAGE 3: REFEREE AVAILABILITY FORM
+# PAGE 3: REFEREE AVAILABILITY FORM – PUBLIC
 # =========================
 
 def page_availability_form():
@@ -1108,18 +1318,18 @@ For flight options you can check:
     refs = refs.sort_values("display")
 
     ref_label = st.selectbox("Your name", refs["display"].tolist())
-    season_list = sorted(events["season"].unique())
-    selected_season = st.selectbox("Season", season_list)
-
     ref_row = refs[refs["display"] == ref_label].iloc[0]
     ref_id = ref_row["ref_id"]
+
+    season_list = sorted(events["season"].unique())
+    selected_season = st.selectbox("Season", season_list)
 
     season_events = events[events["season"] == selected_season].copy()
     if season_events.empty:
         st.info("No events for this season yet.")
         return
 
-    # Merge existing availability (if any)
+    # Merge existing availability for THIS ref only (privacy)
     avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))]
     avail_ref = avail_ref.set_index("event_id") if not avail_ref.empty else pd.DataFrame()
 
@@ -1134,8 +1344,8 @@ For flight options you can check:
             display_df.at[i, "available"] = (avail_ref.loc[ev_id]["available"] == "True")
             display_df.at[i, "airfare_estimate"] = avail_ref.loc[ev_id]["airfare_estimate"]
 
-    # Show editor
-    st.markdown("### Your availability for events in this season")
+    st.markdown(f"### Availability for {ref_row['first_name']} {ref_row['last_name']} – Season {selected_season}")
+
     edited = st.data_editor(
         display_df,
         use_container_width=True,
@@ -1175,39 +1385,151 @@ For flight options you can check:
         save_availability(avail)
         st.success("Thank you! Your availability has been recorded. ✅")
 
+    # Show their own previous submissions (not others)
+    st.markdown("### Your saved availability (summary)")
+    avail_me = load_availability()
+    avail_me = avail_me[(avail_me["ref_id"] == ref_id) & (avail_me["season"] == str(selected_season))]
+    if avail_me.empty:
+        st.info("No previous availability saved for this season.")
+    else:
+        ev_small = events[["event_id", "season", "start_date", "end_date", "event_name", "location"]]
+        merged = avail_me.merge(ev_small, on=["event_id", "season"], how="left")
+        merged = merged.sort_values(["start_date", "event_name"])
+        view_cols = [
+            "start_date",
+            "end_date",
+            "event_name",
+            "location",
+            "available",
+            "airfare_estimate",
+            "timestamp",
+        ]
+        st.dataframe(merged[view_cols], use_container_width=True)
+
 
 # =========================
 # PAGE 4: ADMIN – VIEW AVAILABILITY
 # =========================
 
 def page_admin_availability():
-    st.title("📊 Admin – Availability Overview")
+    require_admin()
+    st.title("📊 Admin – Availability & Nominations Overview")
 
     refs = load_referees()
     events = load_events()
     avail = load_availability()
+    assignments = load_assignments()
 
-    if avail.empty:
-        st.info("No availability submissions yet.")
+    if avail.empty and assignments.empty:
+        st.info("No availability or nominations yet.")
         return
 
-    season_list = sorted(avail["season"].unique())
+    # Determine seasons from both availability and events
+    seasons_avail = avail["season"].unique().tolist() if not avail.empty else []
+    seasons_events = events["season"].unique().tolist() if not events.empty else []
+    season_list = sorted(set(seasons_avail + seasons_events))
+    if not season_list:
+        st.info("No seasons found.")
+        return
+
     selected_season = st.selectbox("Season", season_list)
 
-    avail_season = avail[avail["season"] == selected_season].copy()
-    if avail_season.empty:
-        st.info("No availability in this season.")
+    # Filter by season
+    avail_season = avail[avail["season"] == str(selected_season)].copy()
+    events_season = events[events["season"] == str(selected_season)].copy()
+
+    if avail_season.empty and assignments.empty:
+        st.info("No data for this season.")
         return
 
-    # Join with refs and events
+    # Prepare base from availability
     refs_small = refs[["ref_id", "first_name", "last_name", "nationality", "zone"]].copy()
-    events_small = events[["event_id", "season", "event_name", "start_date", "end_date", "location"]].copy()
+    events_small = events_season[["event_id", "season", "event_name", "start_date", "end_date", "location"]].copy()
 
-    merged = avail_season.merge(refs_small, on="ref_id", how="left")
-    merged = merged.merge(events_small, on=["event_id", "season"], how="left")
+    if avail_season.empty:
+        base = pd.DataFrame(columns=[
+            "ref_id",
+            "event_id",
+            "available",
+            "airfare_estimate",
+            "timestamp",
+            "first_name",
+            "last_name",
+            "nationality",
+            "zone",
+            "event_name",
+            "start_date",
+            "end_date",
+            "location",
+        ])
+    else:
+        merged = avail_season.merge(refs_small, on="ref_id", how="left")
+        merged = merged.merge(events_small, on=["event_id", "season"], how="left")
+        base = merged
 
-    merged["ref_name"] = merged["first_name"].fillna("") + " " + merged["last_name"].fillna("")
-    merged = merged.sort_values(["start_date", "event_name", "ref_name"])
+    # Build nomination set
+    assign_season = assignments.copy()
+    if not assign_season.empty:
+        assign_season = assign_season.merge(
+            events_season[["event_id", "season"]],
+            on="event_id",
+            how="inner",
+        )
+        assign_pairs = set(zip(assign_season["ref_id"], assign_season["event_id"]))
+    else:
+        assign_pairs = set()
+
+    # Include nominations where no availability exists
+    if not assignments.empty and not events_season.empty:
+        for _, a in assign_season.iterrows():
+            key = (a["ref_id"], a["event_id"])
+            if base.empty or not (
+                (base["ref_id"] == a["ref_id"]) &
+                (base["event_id"] == a["event_id"])
+            ).any():
+                ref_row = refs_small[refs_small["ref_id"] == a["ref_id"]]
+                ev_row = events_small[events_small["event_id"] == a["event_id"]]
+                if ref_row.empty or ev_row.empty:
+                    continue
+                rr = ref_row.iloc[0]
+                ee = ev_row.iloc[0]
+                new_row = {
+                    "ref_id": a["ref_id"],
+                    "event_id": a["event_id"],
+                    "available": "",
+                    "airfare_estimate": "",
+                    "timestamp": "",
+                    "first_name": rr["first_name"],
+                    "last_name": rr["last_name"],
+                    "nationality": rr["nationality"],
+                    "zone": rr["zone"],
+                    "event_name": ee["event_name"],
+                    "start_date": ee["start_date"],
+                    "end_date": ee["end_date"],
+                    "location": ee["location"],
+                }
+                base = pd.concat([base, pd.DataFrame([new_row])], ignore_index=True)
+
+    if base.empty:
+        st.info("No availability or nominations to display.")
+        return
+
+    base["ref_name"] = base["first_name"].fillna("") + " " + base["last_name"].fillna("")
+
+    # Compute status: Nominated > Available > Not available
+    def compute_status(r):
+        key = (r["ref_id"], r["event_id"])
+        if key in assign_pairs:
+            return "Nominated"
+        if str(r.get("available", "")).lower() == "true":
+            return "Available"
+        if str(r.get("available", "")).lower() == "false":
+            return "Not available"
+        return "Unknown"
+
+    base["status"] = base.apply(compute_status, axis=1)
+
+    base = base.sort_values(["start_date", "event_name", "ref_name"])
 
     view_cols = [
         "start_date",
@@ -1217,12 +1539,13 @@ def page_admin_availability():
         "ref_name",
         "nationality",
         "zone",
+        "status",
         "available",
         "airfare_estimate",
         "timestamp",
     ]
 
-    st.dataframe(merged[view_cols], use_container_width=True)
+    st.dataframe(base[view_cols], use_container_width=True)
 
 
 # =========================
@@ -1232,27 +1555,44 @@ def page_admin_availability():
 def main():
     st.sidebar.title("🏖️ Beach Referee DB")
 
-    page = st.sidebar.radio(
-        "Go to",
-        [
-            "Admin – Referees",
-            "Referee Search",
-            "Admin – Events",
-            "Referee Availability Form",
-            "Admin – View Availability",
-        ],
-    )
+    # Admin login box in sidebar
+    admin_login_box()
+    init_admin_session()
+    is_admin = st.session_state.get("is_admin", False)
 
+    # Sidebar navigation
+    if is_admin:
+        page = st.sidebar.radio(
+            "Go to",
+            [
+                "Referee Availability Form",  # keep on top even for you
+                "Referee Search",
+                "Admin – Referees",
+                "Admin – Events",
+                "Admin – View Availability",
+            ],
+        )
+    else:
+        # PUBLIC menu only
+        page = st.sidebar.radio(
+            "Go to",
+            [
+                "Referee Availability Form",
+                "Referee Search",
+            ],
+        )
+
+    # Route
     if page == "Admin – Referees":
         page_admin_referees()
-    elif page == "Referee Search":
-        page_referee_search()
     elif page == "Admin – Events":
         page_admin_events()
-    elif page == "Referee Availability Form":
-        page_availability_form()
     elif page == "Admin – View Availability":
         page_admin_availability()
+    elif page == "Referee Search":
+        page_referee_search()
+    elif page == "Referee Availability Form":
+        page_availability_form()
 
 
 if __name__ == "__main__":
