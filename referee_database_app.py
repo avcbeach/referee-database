@@ -643,185 +643,164 @@ def page_admin_referees():
             use_container_width=True,
         )
 
+    # -------------------
+    # IMPORT FROM EXCEL
+    # -------------------
+    st.markdown("---")
+    st.subheader("📥 Import referees from Excel / CSV")
+
+    st.markdown(
+        """
+The file should contain columns (header names):
+
+- `first_name`
+- `last_name`
+- `gender`
+- `nationality`
+- `zone`
+- `birthdate`
+- `fivb_id`
+- `email`
+- `phone`
+- `origin_airport`
+- `position_type`
+- `cc_role`
+- `ref_level`
+- `course_year`
+- `shirt_size`
+- `shorts_size`
+- `active` (True/False/Yes/No)
+- `type` (Indoor/Beach/Both)
+
+Existing referees will be **kept**.  
+New rows will be **added**.  
+If an imported row has a FIVB ID that already exists, it will be **skipped**.
+"""
+    )
+
+    uploaded = st.file_uploader("Upload Excel or CSV file", type=["xlsx", "xls", "csv"], key="ref_import")
+
+    if uploaded is not None:
+        try:
+            if uploaded.name.lower().endswith(".csv"):
+                df_imp = pd.read_csv(uploaded, dtype=str)
+            else:
+                df_imp = pd.read_excel(uploaded, dtype=str)
+        except Exception as e:
+            st.error(f"Could not read file: {e}")
+            return
+
+        df_imp = df_imp.fillna("")
+        st.write("Preview of imported data:")
+        st.dataframe(df_imp.head(), use_container_width=True)
+
+        required_cols = ["first_name", "last_name"]
+        missing = [c for c in required_cols if c not in df_imp.columns]
+        if missing:
+            st.error(f"Missing required columns: {missing}")
+            return
+
+        if st.button("✅ Import into referee database"):
+            refs_current = load_referees()
+            existing_fivb = set(refs_current["fivb_id"].astype(str).str.strip())
+
+            new_rows = []
+            skipped_duplicate = 0
+            added_count = 0
+
+            for _, r in df_imp.iterrows():
+                fn = str(r.get("first_name", "")).strip()
+                ln = str(r.get("last_name", "")).strip()
+                if not fn and not ln:
+                    continue
+
+                fivb_str = str(r.get("fivb_id", "")).strip()
+                if fivb_str and fivb_str in existing_fivb:
+                    skipped_duplicate += 1
+                    continue
+
+                gender = str(r.get("gender", "")).strip()
+                nationality = str(r.get("nationality", "")).strip()
+                zone = str(r.get("zone", "")).strip()
+                birthdate = str(r.get("birthdate", "")).strip()
+                email = str(r.get("email", "")).strip()
+                phone = str(r.get("phone", "")).strip()
+                origin_airport = str(r.get("origin_airport", "")).strip()
+                position_type = str(r.get("position_type", "")).strip()
+                cc_role = str(r.get("cc_role", "")).strip()
+                ref_level = str(r.get("ref_level", "")).strip()
+                course_year = str(r.get("course_year", "")).strip()
+                shirt_size = str(r.get("shirt_size", "")).strip()
+                shorts_size = str(r.get("shorts_size", "")).strip()
+                active_raw = str(r.get("active", "")).strip().lower()
+                ref_type = str(r.get("type", "")).strip()
+
+                if active_raw in ["true", "yes", "y", "1"]:
+                    active_str = "True"
+                elif active_raw in ["false", "no", "n", "0"]:
+                    active_str = "False"
+                else:
+                    active_str = "True"  # default to active if unclear
+
+                new_rows.append({
+                    "ref_id": new_id(),
+                    "first_name": fn,
+                    "last_name": ln,
+                    "gender": gender,
+                    "nationality": nationality,
+                    "zone": zone,
+                    "birthdate": birthdate,
+                    "fivb_id": fivb_str,
+                    "email": email,
+                    "phone": phone,
+                    "origin_airport": origin_airport,
+                    "position_type": position_type,
+                    "cc_role": cc_role,
+                    "ref_level": ref_level,
+                    "course_year": course_year,
+                    "photo_file": "",
+                    "passport_file": "",
+                    "shirt_size": shirt_size,
+                    "shorts_size": shorts_size,
+                    "active": active_str,
+                    "type": ref_type,
+                })
+                added_count += 1
+
+            if new_rows:
+                df_new = pd.DataFrame(new_rows)
+                refs_updated = pd.concat([refs_current, df_new], ignore_index=True)
+                save_referees(refs_updated)
+                msg = f"Imported {added_count} referees."
+                if skipped_duplicate:
+                    msg += f" Skipped {skipped_duplicate} rows due to duplicate FIVB IDs."
+                st.success(msg)
+            else:
+                st.info("No new referees were added from this file.")
+
 
 # =========================
-# PAGE 1b: REFEREE SEARCH
+# PAGE 1b: REFEREE SEARCH (PROFILE ONLY)
 # =========================
 
 def page_referee_search():
-    st.title("🔎 Referee Search")
+    st.title("🔎 Referee Search & Profile")
 
     refs = load_referees()
     if refs.empty:
         st.info("No referees in database yet.")
         return
 
-    st.markdown("Use filters and search to find referees/officials. Photos are shown as thumbnails in the table.")
+    refs = refs.copy()
+    refs["display"] = refs.apply(referee_display_name, axis=1)
+    refs = refs.sort_values(["last_name", "first_name"])
 
-    # -------- Filters --------
-    with st.container():
-        q = st.text_input("Search (name, nationality, FIVB ID, email, phone)", "")
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            nat_filter = st.multiselect(
-                "Nationality",
-                sorted([n for n in refs["nationality"].unique() if n]),
-            )
-        with col2:
-            zone_filter = st.multiselect(
-                "Zone",
-                [z for z in ZONES if z],
-            )
-        with col3:
-            pos_filter = st.multiselect(
-                "Position",
-                POSITION_TYPES,
-            )
-        with col4:
-            level_filter = st.multiselect(
-                "Referee Level",
-                [l for l in REF_LEVELS if l],
-            )
-
-        col5, col6 = st.columns(2)
-        with col5:
-            gender_filter = st.multiselect(
-                "Gender",
-                [g for g in GENDERS if g],
-            )
-        with col6:
-            active_choice = st.selectbox(
-                "Active status",
-                ["All", "Active only", "Inactive only"],
-            )
-
-    df = refs.copy()
-
-    # Text search
-    if q.strip():
-        q_lower = q.lower()
-        mask = (
-            df["first_name"].str.lower().str.contains(q_lower, na=False)
-            | df["last_name"].str.lower().str.contains(q_lower, na=False)
-            | df["nationality"].str.lower().str.contains(q_lower, na=False)
-            | df["fivb_id"].str.lower().str.contains(q_lower, na=False)
-            | df["email"].str.lower().str.contains(q_lower, na=False)
-            | df["phone"].str.lower().str.contains(q_lower, na=False)
-        )
-        df = df[mask]
-
-    # Apply filters
-    if nat_filter:
-        df = df[df["nationality"].isin(nat_filter)]
-    if zone_filter:
-        df = df[df["zone"].isin(zone_filter)]
-    if pos_filter:
-        df = df[df["position_type"].isin(pos_filter)]
-    if level_filter:
-        df = df[df["ref_level"].isin(level_filter)]
-    if gender_filter:
-        df = df[df["gender"].isin(gender_filter)]
-    if active_choice == "Active only":
-        df = df[df["active"] == "True"]
-    elif active_choice == "Inactive only":
-        df = df[df["active"] == "False"]
-
-    if df.empty:
-        st.info("No referees match these filters.")
-        return
-
-    # Build view with photo paths
-    view = df.copy()
-
-    photo_paths = []
-    for _, r in view.iterrows():
-        p = r.get("photo_file", "")
-        if isinstance(p, str) and p:
-            full_path = os.path.join(DATA_DIR, p)
-            if os.path.exists(full_path):
-                photo_paths.append(full_path)
-            else:
-                photo_paths.append(None)
-        else:
-            photo_paths.append(None)
-    view["Photo"] = photo_paths
-
-    # Reorder columns for display
-    display_cols = [
-        "Photo",
-        "first_name",
-        "last_name",
-        "gender",
-        "nationality",
-        "zone",
-        "position_type",
-        "ref_level",
-        "type",
-        "shirt_size",
-        "shorts_size",
-        "active",
-        "fivb_id",
-        "origin_airport",
-        "email",
-        "phone",
-        "birthdate",
-        "course_year",
-    ]
-
-    display_cols = [c for c in display_cols if c in view.columns]
-
-    view = view[display_cols].sort_values(["last_name", "first_name"])
-
-    st.markdown("### Referee / Official List")
-
-    st.data_editor(
-        view,
-        use_container_width=True,
-        hide_index=True,
-        disabled=True,
-        column_config={
-            "Photo": st.column_config.ImageColumn(
-                "Photo",
-                help="Photo (if available)",
-                width="small",
-            ),
-            "first_name": st.column_config.TextColumn("First name"),
-            "last_name": st.column_config.TextColumn("Last name"),
-            "gender": st.column_config.TextColumn("Gender"),
-            "nationality": st.column_config.TextColumn("Nationality"),
-            "zone": st.column_config.TextColumn("Zone"),
-            "position_type": st.column_config.TextColumn("Position"),
-            "ref_level": st.column_config.TextColumn("Referee level"),
-            "type": st.column_config.TextColumn("Type"),
-            "shirt_size": st.column_config.TextColumn("Shirt size"),
-            "shorts_size": st.column_config.TextColumn("Shorts size"),
-            "active": st.column_config.TextColumn("Active"),
-            "fivb_id": st.column_config.TextColumn("FIVB ID"),
-            "origin_airport": st.column_config.TextColumn("Origin airport"),
-            "email": st.column_config.TextColumn("Email"),
-            "phone": st.column_config.TextColumn("Phone"),
-            "birthdate": st.column_config.TextColumn("Birthdate"),
-            "course_year": st.column_config.TextColumn("Course year"),
-        },
-    )
-
-    # ---------- Profile view ----------
-    st.markdown("---")
-    st.subheader("👁️ View Referee Profile")
-
-    # Build options
-    df = df.sort_values(["last_name", "first_name"])
     options = []
     mapping = {}
-    for _, r in df.iterrows():
+    for _, r in refs.iterrows():
         label = f"{r['first_name']} {r['last_name']} ({r['nationality']})"
         options.append(label)
         mapping[label] = r["ref_id"]
-
-    if not options:
-        st.info("No referees to show.")
-        return
 
     sel_label = st.selectbox("Select a referee", options)
     sel_id = mapping[sel_label]
