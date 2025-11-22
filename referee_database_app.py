@@ -106,8 +106,6 @@ def github_read_file(path):
     elif r.status_code == 404:
         return None
     else:
-        # Optional debug
-        # st.warning(f"GitHub read error for {path}: {r.status_code}")
         return None
 
     return None
@@ -152,8 +150,6 @@ def github_write_file(path, content_bytes, message):
     try:
         r_put = requests.put(url, headers=headers, json=payload, timeout=10)
         if r_put.status_code not in (200, 201):
-            # Optional debug:
-            # st.warning(f"GitHub write error for {path}: {r_put.status_code}")
             pass
     except Exception:
         pass
@@ -448,7 +444,6 @@ def page_admin_referees():
                 full_photo_path = os.path.join(DATA_DIR, photo_path)
                 with open(full_photo_path, "wb") as f:
                     f.write(photo_file.getbuffer())
-                # push to GitHub
                 cfg = github_config()
                 if cfg:
                     github_write_file(
@@ -464,7 +459,6 @@ def page_admin_referees():
                 full_pass_path = os.path.join(DATA_DIR, passport_path)
                 with open(full_pass_path, "wb") as f:
                     f.write(passport_file.getbuffer())
-                # push to GitHub
                 cfg = github_config()
                 if cfg:
                     github_write_file(
@@ -625,6 +619,173 @@ def page_admin_referees():
             refs[view_cols].sort_values(["position_type", "last_name", "first_name"]),
             use_container_width=True,
         )
+
+
+# =========================
+# PAGE 1b: REFEREE SEARCH
+# =========================
+
+def page_referee_search():
+    st.title("🔎 Referee Search")
+
+    refs = load_referees()
+    if refs.empty:
+        st.info("No referees in database yet.")
+        return
+
+    st.markdown("Use filters and search to find referees/officials. Photos are shown as thumbnails in the table.")
+
+    # -------- Filters --------
+    with st.container():
+        q = st.text_input("Search (name, nationality, FIVB ID, email, phone)", "")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            nat_filter = st.multiselect(
+                "Nationality",
+                sorted([n for n in refs["nationality"].unique() if n]),
+            )
+        with col2:
+            zone_filter = st.multiselect(
+                "Zone",
+                [z for z in ZONES if z],
+            )
+        with col3:
+            pos_filter = st.multiselect(
+                "Position",
+                POSITION_TYPES,
+            )
+        with col4:
+            level_filter = st.multiselect(
+                "Referee Level",
+                [l for l in REF_LEVELS if l],
+            )
+
+        col5, col6 = st.columns(2)
+        with col5:
+            gender_filter = st.multiselect(
+                "Gender",
+                [g for g in GENDERS if g],
+            )
+        with col6:
+            active_choice = st.selectbox(
+                "Active status",
+                ["All", "Active only", "Inactive only"],
+            )
+
+    df = refs.copy()
+
+    # Text search
+    if q.strip():
+        q_lower = q.lower()
+        mask = (
+            df["first_name"].str.lower().str.contains(q_lower, na=False)
+            | df["last_name"].str.lower().str.contains(q_lower, na=False)
+            | df["nationality"].str.lower().str.contains(q_lower, na=False)
+            | df["fivb_id"].str.lower().str.contains(q_lower, na=False)
+            | df["email"].str.lower().str.contains(q_lower, na=False)
+            | df["phone"].str.lower().str.contains(q_lower, na=False)
+        )
+        df = df[mask]
+
+    # Apply filters
+    if nat_filter:
+        df = df[df["nationality"].isin(nat_filter)]
+    if zone_filter:
+        df = df[df["zone"].isin(zone_filter)]
+    if pos_filter:
+        df = df[df["position_type"].isin(pos_filter)]
+    if level_filter:
+        df = df[df["ref_level"].isin(level_filter)]
+    if gender_filter:
+        df = df[df["gender"].isin(gender_filter)]
+    if active_choice == "Active only":
+        df = df[df["active"] == "True"]
+    elif active_choice == "Inactive only":
+        df = df[df["active"] == "False"]
+
+    if df.empty:
+        st.info("No referees match these filters.")
+        return
+
+    # Build view with photo thumbnails (not stored in CSV, only for display)
+    view = df.copy()
+
+    # Create Photo column of bytes or empty
+    photo_bytes = []
+    for _, r in view.iterrows():
+        p = r.get("photo_file", "")
+        if isinstance(p, str) and p:
+            full_path = os.path.join(DATA_DIR, p)
+            if os.path.exists(full_path):
+                try:
+                    with open(full_path, "rb") as f:
+                        photo_bytes.append(f.read())
+                    continue
+                except Exception:
+                    pass
+        photo_bytes.append(None)
+
+    view["Photo"] = photo_bytes
+
+    # Reorder columns for display
+    display_cols = [
+        "Photo",
+        "first_name",
+        "last_name",
+        "gender",
+        "nationality",
+        "zone",
+        "position_type",
+        "ref_level",
+        "type",
+        "shirt_size",
+        "shorts_size",
+        "active",
+        "fivb_id",
+        "origin_airport",
+        "email",
+        "phone",
+        "birthdate",
+        "course_year",
+    ]
+
+    display_cols = [c for c in display_cols if c in view.columns]
+
+    view = view[display_cols].sort_values(["last_name", "first_name"])
+
+    st.markdown("### Referee / Official List")
+
+    st.data_editor(
+        view,
+        use_container_width=True,
+        hide_index=True,
+        disabled=True,
+        column_config={
+            "Photo": st.column_config.ImageColumn(
+                "Photo",
+                help="Photo (if available)",
+                width="small",
+            ),
+            "first_name": st.column_config.TextColumn("First name"),
+            "last_name": st.column_config.TextColumn("Last name"),
+            "gender": st.column_config.TextColumn("Gender"),
+            "nationality": st.column_config.TextColumn("Nationality"),
+            "zone": st.column_config.TextColumn("Zone"),
+            "position_type": st.column_config.TextColumn("Position"),
+            "ref_level": st.column_config.TextColumn("Referee level"),
+            "type": st.column_config.TextColumn("Type"),
+            "shirt_size": st.column_config.TextColumn("Shirt size"),
+            "shorts_size": st.column_config.TextColumn("Shorts size"),
+            "active": st.column_config.TextColumn("Active"),
+            "fivb_id": st.column_config.TextColumn("FIVB ID"),
+            "origin_airport": st.column_config.TextColumn("Origin airport"),
+            "email": st.column_config.TextColumn("Email"),
+            "phone": st.column_config.TextColumn("Phone"),
+            "birthdate": st.column_config.TextColumn("Birthdate"),
+            "course_year": st.column_config.TextColumn("Course year"),
+        },
+    )
 
 
 # =========================
@@ -838,6 +999,7 @@ def main():
         "Go to",
         [
             "Admin – Referees",
+            "Referee Search",
             "Admin – Events",
             "Referee Availability Form",
             "Admin – View Availability",
@@ -846,6 +1008,8 @@ def main():
 
     if page == "Admin – Referees":
         page_admin_referees()
+    elif page == "Referee Search":
+        page_referee_search()
     elif page == "Admin – Events":
         page_admin_events()
     elif page == "Referee Availability Form":
