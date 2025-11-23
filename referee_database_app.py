@@ -1100,6 +1100,9 @@ def page_admin_events():
 
     st.markdown("Use this page to **add, edit, or delete events** for each year/season.")
 
+    # ---------------------------------------------------------
+    # ADD EVENT FORM
+    # ---------------------------------------------------------
     with st.form("event_form"):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1116,8 +1119,6 @@ def page_admin_events():
             ev_name = st.text_input("Event name", value="")
         with c6:
             destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
-            requires_availability = st.checkbox("Requires availability form?", value=True)
-
 
         c7, c8, _ = st.columns(3)
         with c7:
@@ -1132,21 +1133,22 @@ def page_admin_events():
                 value=departure_date,
                 help="Recommended departure date for officials",
             )
-            requires_availability = st.selectbox(
-                "Requires Availability?",
-                ["Yes", "No"],
-                index=0
-            )       
-        
+
+        requires_availability = st.selectbox(
+            "Requires Availability?",
+            ["Yes", "No"],
+            index=0
+        )
+
         submitted = st.form_submit_button("➕ Add event")
 
     if submitted:
         if not ev_name.strip():
             st.error("Please enter event name.")
         elif end_date < start_date:
-            st.error("End date must be on or after the start date.")
+            st.error("End date must be on or after start date.")
         elif departure_date < arrival_date:
-            st.error("Departure date must be on or after the arrival date.")
+            st.error("Departure date must be on or after arrival date.")
         else:
             new_ev = pd.DataFrame([{
                 "event_id": new_id(),
@@ -1158,13 +1160,16 @@ def page_admin_events():
                 "destination_airport": destination_airport.strip(),
                 "arrival_date": arrival_date.isoformat(),
                 "departure_date": departure_date.isoformat(),
-                "requires_availability": str(requires_availability),
+                "requires_availability": requires_availability,
             }])
             events = pd.concat([events, new_ev], ignore_index=True)
             save_events(events)
             st.success("Event added ✅")
             st.rerun()
 
+    # ---------------------------------------------------------
+    # SHOW EVENTS
+    # ---------------------------------------------------------
     st.markdown("### Existing events")
     if events.empty:
         st.info("No events yet.")
@@ -1174,6 +1179,9 @@ def page_admin_events():
         display_cols = [c for c in events_disp.columns if c != "event_id"]
         st.dataframe(events_disp[display_cols], use_container_width=True)
 
+    # ---------------------------------------------------------
+    # EDIT / DELETE EVENT
+    # ---------------------------------------------------------
     if not events.empty:
         st.markdown("---")
         st.subheader("✏️ Edit / 🗑️ Delete event")
@@ -1197,6 +1205,7 @@ def page_admin_events():
             ev_row = events[events["event_id"] == ev_id].iloc[0]
 
             st.markdown("#### Edit event")
+
             with st.form("edit_event_form"):
                 c1, c2, c3 = st.columns(3)
                 with c1:
@@ -1234,11 +1243,12 @@ def page_admin_events():
                         "Departure date",
                         value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit),
                     )
-                    req_edit = st.selectbox(
-                        "Requires Availability?",
-                        ["Yes", "No"],
-                        index=["Yes", "No"].index(ev_row.get("requires_availability", "Yes"))
-)
+
+                req_edit = st.selectbox(
+                    "Requires Availability?",
+                    ["Yes", "No"],
+                    index=["Yes", "No"].index(ev_row.get("requires_availability", "Yes"))
+                )
 
                 save_btn = st.form_submit_button("💾 Save changes")
 
@@ -1266,19 +1276,16 @@ def page_admin_events():
                     st.rerun()
 
             st.markdown("#### 🗑️ Delete this event")
-            st.warning(
-                "Deleting this event will also remove all **availability records** and **nominations** linked to it.\n"
-                "This action cannot be undone."
-            )
             confirm_del = st.checkbox("Yes, delete this event permanently.")
+
             if st.button("🗑️ Delete event") and confirm_del:
                 events = events[events["event_id"] != ev_id]
                 save_events(events)
 
-                avail = load_availability()
-                if not avail.empty:
-                    avail = avail[avail["event_id"] != ev_id]
-                    save_availability(avail)
+                avail_all = load_availability()
+                if not avail_all.empty:
+                    avail_all = avail_all[avail_all["event_id"] != ev_id]
+                    save_availability(avail_all)
 
                 assignments = load_assignments()
                 if not assignments.empty:
@@ -1287,6 +1294,7 @@ def page_admin_events():
 
                 st.success("Event deleted ✅")
                 st.rerun()
+
 
 
 # =========================
