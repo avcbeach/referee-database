@@ -32,7 +32,7 @@ POSITION_TYPES = ["Control Committee", "Referee", ""]
 CC_ROLES = ["", "Technical Delegate", "Referee Coach", "Both"]
 REF_LEVELS = ["", "FIVB", "AVC International", "AVC Candidate", "National"]
 REF_TYPES = ["", "Indoor", "Beach", "Both"]
-UNIFORM_SIZES = ["", "XS", "S", "M", "L", "XL", "2XL", "3XL"]
+UNIFORM_SIZES = ["", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
 
 
 # =========================
