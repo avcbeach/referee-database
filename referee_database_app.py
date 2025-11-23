@@ -257,7 +257,6 @@ EVENT_COLS = [
     "requires_availability",
 ]
 
-
 AVAIL_COLS = [
     "avail_id",
     "ref_id",
@@ -1102,64 +1101,64 @@ def page_admin_events():
     st.markdown("Use this page to **add, edit, or delete events** for each year/season.")
 
     with st.form("event_form"):
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        season = st.text_input("Season", value=str(date.today().year))
-    with c2:
-        start_date = st.date_input("Start date", value=date.today())
-    with c3:
-        end_date = st.date_input("End date", value=date.today())
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            season = st.text_input("Season", value=str(date.today().year))
+        with c2:
+            start_date = st.date_input("Start date", value=date.today())
+        with c3:
+            end_date = st.date_input("End date", value=date.today())
 
-    c4, c5, c6 = st.columns(3)
-    with c4:
-        location = st.text_input("Location (city/country)", value="")
-    with c5:
-        ev_name = st.text_input("Event name", value="")
-    with c6:
-        destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            location = st.text_input("Location (city/country)", value="")
+        with c5:
+            ev_name = st.text_input("Event name", value="")
+        with c6:
+            destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
+            requires_availability = st.checkbox("Requires availability form?", value=True)
 
-    c7, c8, _ = st.columns(3)
-    with c7:
-        arrival_date = st.date_input(
-            "Arrival date",
-            value=start_date,
-            help="Recommended arrival date for officials",
-        )
-    with c8:
-        departure_date = st.date_input(
-            "Departure date",
-            value=end_date,
-            help="Recommended departure date for officials",
-        )
 
-    requires_availability = st.selectbox(
-        "Requires Availability?",
-        ["Yes", "No"],
-        index=0
-    )
+        c7, c8, _ = st.columns(3)
+        with c7:
+            arrival_date = st.date_input(
+                "Arrival date",
+                value=arrival_date,
+                help="Recommended arrival date for officials",
+            )
+        with c8:
+            departure_date = st.date_input(
+                "Departure date",
+                value=departure_date,
+                help="Recommended departure date for officials",
+            )
+        requires_availability = st.selectbox(
+            "Requires Availability?",
+            ["Yes", "No"],
+            index=0
+        )       
+        submitted = st.form_submit_button("➕ Add event")
 
-    submitted = st.form_submit_button("➕ Add event")
-
-if submitted:
-    if not ev_name.strip():
-        st.error("Please enter event name.")
-    elif end_date < start_date:
-        st.error("End date must be on or after the start date.")
-    elif departure_date < arrival_date:
-        st.error("Departure date must be on or after the arrival date.")
-    else:
-        new_ev = pd.DataFrame([{
-            "event_id": new_id(),
-            "season": str(season).strip(),
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "event_name": ev_name.strip(),
-            "location": location.strip(),
-            "destination_airport": destination_airport.strip(),
-            "arrival_date": arrival_date.isoformat(),
-            "departure_date": departure_date.isoformat(),
-            "requires_availability": requires_availability,
-        }])
+    if submitted:
+        if not ev_name.strip():
+            st.error("Please enter event name.")
+        elif end_date < start_date:
+            st.error("End date must be on or after the start date.")
+        elif departure_date < arrival_date:
+            st.error("Departure date must be on or after the arrival date.")
+        else:
+            new_ev = pd.DataFrame([{
+                "event_id": new_id(),
+                "season": str(season).strip(),
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "event_name": ev_name.strip(),
+                "location": location.strip(),
+                "destination_airport": destination_airport.strip(),
+                "arrival_date": arrival_date.isoformat(),
+                "departure_date": departure_date.isoformat(),
+                "requires_availability": str(requires_availability),
+            }])
             events = pd.concat([events, new_ev], ignore_index=True)
             save_events(events)
             st.success("Event added ✅")
@@ -1197,66 +1196,50 @@ if submitted:
             ev_row = events[events["event_id"] == ev_id].iloc[0]
 
             st.markdown("#### Edit event")
+            with st.form("edit_event_form"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    season_edit = st.text_input("Season", value=str(ev_row["season"]))
+                with c2:
+                    sd_edit = st.date_input(
+                        "Start date",
+                        value=_parse_date_str(ev_row["start_date"], date.today()),
+                    )
+                with c3:
+                    ed_edit = st.date_input(
+                        "End date",
+                        value=_parse_date_str(ev_row["end_date"], date.today()),
+                    )
 
-with st.form("edit_event_form"):
+                c4, c5, c6 = st.columns(3)
+                with c4:
+                    loc_edit = st.text_input("Location (city/country)", value=str(ev_row["location"]))
+                with c5:
+                    name_edit = st.text_input("Event name", value=str(ev_row["event_name"]))
+                with c6:
+                    dest_edit = st.text_input(
+                        "Destination airport (e.g. BKK, DOH)",
+                        value=str(ev_row.get("destination_airport", "")),
+                    )
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        season_edit = st.text_input(
-            "Season",
-            value=str(ev_row["season"])
-        )
-    with c2:
-        sd_edit = st.date_input(
-            "Start date",
-            value=_parse_date_str(ev_row["start_date"], date.today())
-        )
-    with c3:
-        ed_edit = st.date_input(
-            "End date",
-            value=_parse_date_str(ev_row["end_date"], date.today())
-        )
+                c7, c8, _ = st.columns(3)
+                with c7:
+                    arr_edit = st.date_input(
+                        "Arrival date",
+                        value=_parse_date_str(ev_row.get("arrival_date", ""), sd_edit),
+                    )
+                with c8:
+                    dep_edit = st.date_input(
+                        "Departure date",
+                        value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit),
+                    )
+                    req_edit = st.selectbox(
+                        "Requires Availability?",
+                        ["Yes", "No"],
+                        index=["Yes", "No"].index(ev_row.get("requires_availability", "Yes"))
+)
 
-    c4, c5, c6 = st.columns(3)
-    with c4:
-        loc_edit = st.text_input(
-            "Location (city/country)",
-            value=str(ev_row["location"])
-        )
-    with c5:
-        name_edit = st.text_input(
-            "Event name",
-            value=str(ev_row["event_name"])
-        )
-    with c6:
-        dest_edit = st.text_input(
-            "Destination airport (e.g. BKK, DOH)",
-            value=str(ev_row.get("destination_airport", ""))
-        )
-
-    c7, c8, c9 = st.columns(3)
-    with c7:
-        arr_edit = st.date_input(
-            "Arrival date",
-            value=_parse_date_str(ev_row.get("arrival_date", ""), sd_edit)
-        )
-    with c8:
-        dep_edit = st.date_input(
-            "Departure date",
-            value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit)
-        )
-    with c9:
-        requires_avail_edit = st.selectbox(
-            "Requires Availability?",
-            ["Yes", "No"],
-            index=["Yes", "No"].index(
-                ev_row.get("requires_availability", "Yes") or "Yes"
-            )
-        )
-
-    save_btn = st.form_submit_button("💾 Save changes")
-
-
+                save_btn = st.form_submit_button("💾 Save changes")
 
             if save_btn:
                 if not name_edit.strip():
@@ -1274,9 +1257,8 @@ with st.form("edit_event_form"):
                     events.loc[idx, "location"] = loc_edit.strip()
                     events.loc[idx, "destination_airport"] = dest_edit.strip()
                     events.loc[idx, "arrival_date"] = arr_edit.isoformat()
-			events.loc[idx, "departure_date"] = dep_edit.isoformat()
-			events.loc[idx, "requires_availability"] = req_edit
-
+                    events.loc[idx, "departure_date"] = dep_edit.isoformat()
+                    events.loc[idx, "requires_availability"] = req_edit
 
                     save_events(events)
                     st.success("Event updated ✅")
@@ -1385,11 +1367,7 @@ This form is **private** — only you and administrators can view your submissio
 
     selected_season = st.selectbox("Season", season_list)
 
-    season_events = events[
-    (events["season"] == selected_season) &
-    (events["requires_availability"].fillna("Yes") == "Yes")
-].copy()
-
+    season_events = events[events["season"] == selected_season].copy()
     if season_events.empty:
         st.info("No events for this season yet.")
         return
