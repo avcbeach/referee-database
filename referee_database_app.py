@@ -1132,11 +1132,12 @@ def page_admin_events():
                 value=departure_date,
                 help="Recommended departure date for officials",
             )
-        requires_availability = st.selectbox(
-            "Requires Availability?",
-            ["Yes", "No"],
-            index=0
+            requires_availability = st.selectbox(
+                "Requires Availability?",
+                ["Yes", "No"],
+                index=0
             )       
+        
         submitted = st.form_submit_button("➕ Add event")
 
     if submitted:
