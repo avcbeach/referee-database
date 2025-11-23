@@ -1119,15 +1119,20 @@ def page_admin_events():
         with c5:
             location = st.text_input("Location (city/country)", value="")
         with c6:
-            destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
+            destination_airport = st.text_input("Destination airport (e.g. BKK)", value="")
 
+        # Arrival/Departure default to start/end
         c7, c8, _ = st.columns(3)
         with c7:
             arrival_date = st.date_input("Arrival date", value=start_date)
         with c8:
             departure_date = st.date_input("Departure date", value=end_date)
 
-        requires_availability = st.selectbox("Requires Availability?", ["Yes", "No"], index=0)
+        requires_availability = st.selectbox(
+            "Requires Availability?",
+            ["Yes", "No"],
+            index=0
+        )
 
         add_submit = st.form_submit_button("💾 Add Event")
 
@@ -1192,11 +1197,18 @@ def page_admin_events():
             ev_id = id_map[sel_label]
             ev = events[events["event_id"] == ev_id].iloc[0]
 
-            # Safe date parsing:
+            # Safe parse old dates
             sd_val = _parse_date_str(ev.get("start_date", ""), date.today())
             ed_val = _parse_date_str(ev.get("end_date", ""), date.today())
             arr_val = _parse_date_str(ev.get("arrival_date", ""), sd_val)
             dep_val = _parse_date_str(ev.get("departure_date", ""), ed_val)
+
+            # Safe parse Requires Availability
+            raw_req = str(ev.get("requires_availability", "Yes")).strip().lower()
+            if raw_req not in ["yes", "no"]:
+                req_clean = "Yes"
+            else:
+                req_clean = "Yes" if raw_req == "yes" else "No"
 
             st.markdown("### Edit Event")
 
@@ -1215,7 +1227,10 @@ def page_admin_events():
                 with c5:
                     loc_edit = st.text_input("Location", value=str(ev["location"]))
                 with c6:
-                    dest_edit = st.text_input("Destination airport", value=str(ev.get("destination_airport", "")))
+                    dest_edit = st.text_input(
+                        "Destination airport",
+                        value=str(ev.get("destination_airport", ""))
+                    )
 
                 c7, c8, _ = st.columns(3)
                 with c7:
@@ -1226,7 +1241,7 @@ def page_admin_events():
                 req_edit = st.selectbox(
                     "Requires Availability?",
                     ["Yes", "No"],
-                    index=["Yes", "No"].index(ev.get("requires_availability", "Yes"))
+                    index=["Yes", "No"].index(req_clean)
                 )
 
                 save_edit = st.form_submit_button("💾 Save Changes")
@@ -1255,6 +1270,7 @@ def page_admin_events():
                     st.success("Event updated successfully ✅")
                     st.rerun()
 
+            # DELETE
             st.markdown("---")
             st.subheader("🗑 Delete Event")
 
@@ -1264,18 +1280,18 @@ def page_admin_events():
                 events = events[events["event_id"] != ev_id]
                 save_events(events)
 
-                # Remove linked availability
+                # Remove linked data
                 avail = load_availability()
                 avail = avail[avail["event_id"] != ev_id]
                 save_availability(avail)
 
-                # Remove linked assignments
                 assignments = load_assignments()
                 assignments = assignments[assignments["event_id"] != ev_id]
                 save_assignments(assignments)
 
                 st.success("Event deleted successfully.")
                 st.rerun()
+
 
 # =========================
 # PAGE: REFEREE AVAILABILITY FORM – PUBLIC
