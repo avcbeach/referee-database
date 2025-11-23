@@ -1103,7 +1103,8 @@ def page_admin_events():
     # ---------------------------------------------------------
     # ADD EVENT FORM
     # ---------------------------------------------------------
-
+    _default_arrival = date.today()
+    _default_departure = date.today()
 
     with st.form("event_form"):
         c1, c2, c3 = st.columns(3)
@@ -1126,13 +1127,13 @@ def page_admin_events():
         with c7:
             arrival_date = st.date_input(
                 "Arrival date",
-                value=date.today,
+                value=_default_arrival,
                 help="Recommended arrival date for officials",
             )
         with c8:
             departure_date = st.date_input(
                 "Departure date",
-                value=date.today,
+                value=_default_departure,
                 help="Recommended departure date for officials",
             )
 
@@ -1209,18 +1210,23 @@ def page_admin_events():
             st.markdown("#### Edit event")
 
             with st.form("edit_event_form"):
+                sd_parsed = _parse_date_str(ev_row.get("start_date", ""), date.today())
+                ed_parsed = _parse_date_str(ev_row.get("end_date", ""), date.today())
+                arr_parsed = _parse_date_str(ev_row.get("arrival_date", ""), sd_parsed)
+                dep_parsed = _parse_date_str(ev_row.get("departure_date", ""), ed_parsed)
+
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     season_edit = st.text_input("Season", value=str(ev_row["season"]))
                 with c2:
                     sd_edit = st.date_input(
                         "Start date",
-                        value=_parse_date_str(ev_row["start_date"], date.today()),
+                        value=sd_parsed,
                     )
                 with c3:
                     ed_edit = st.date_input(
                         "End date",
-                        value=_parse_date_str(ev_row["end_date"], date.today()),
+                        value=ed_parsed,
                     )
 
                 c4, c5, c6 = st.columns(3)
@@ -1238,12 +1244,12 @@ def page_admin_events():
                 with c7:
                     arr_edit = st.date_input(
                         "Arrival date",
-                        value=_parse_date_str(ev_row.get("arrival_date", ""), sd_edit),
+                        value=arr_parsed,
                     )
                 with c8:
                     dep_edit = st.date_input(
                         "Departure date",
-                        value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit),
+                        value=dep_parsed,
                     )
 
                 req_edit = st.selectbox(
