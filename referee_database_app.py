@@ -1103,49 +1103,47 @@ def page_admin_events():
     # ---------------------------------------------------------
     # ADD EVENT FORM
     # ---------------------------------------------------------
-# Define safe default values BEFORE the form
-_default_arrival = date.today()
-_default_departure = date.today()
+    _default_arrival = date.today()
+    _default_departure = date.today()
 
-with st.form("event_form"):
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        season = st.text_input("Season", value=str(date.today().year))
-    with c2:
-        start_date = st.date_input("Start date", value=date.today())
-    with c3:
-        end_date = st.date_input("End date", value=date.today())
+    with st.form("event_form"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            season = st.text_input("Season", value=str(date.today().year))
+        with c2:
+            start_date = st.date_input("Start date", value=date.today())
+        with c3:
+            end_date = st.date_input("End date", value=date.today())
 
-    c4, c5, c6 = st.columns(3)
-    with c4:
-        location = st.text_input("Location (city/country)", value="")
-    with c5:
-        ev_name = st.text_input("Event name", value="")
-    with c6:
-        destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            location = st.text_input("Location (city/country)", value="")
+        with c5:
+            ev_name = st.text_input("Event name", value="")
+        with c6:
+            destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
 
-    c7, c8, _ = st.columns(3)
-    with c7:
-        arrival_date = st.date_input(
-            "Arrival date",
-            value=_default_arrival,
-            help="Recommended arrival date for officials",
+        c7, c8, _ = st.columns(3)
+        with c7:
+            arrival_date = st.date_input(
+                "Arrival date",
+                value=_default_arrival,
+                help="Recommended arrival date for officials",
+            )
+        with c8:
+            departure_date = st.date_input(
+                "Departure date",
+                value=_default_departure,
+                help="Recommended departure date for officials",
+            )
+
+        requires_availability = st.selectbox(
+            "Requires Availability?",
+            ["Yes", "No"],
+            index=0
         )
-    with c8:
-        departure_date = st.date_input(
-            "Departure date",
-            value=_default_departure,
-            help="Recommended departure date for officials",
-        )
 
-    requires_availability = st.selectbox(
-        "Requires Availability?",
-        ["Yes", "No"],
-        index=0
-    )
-
-    submitted = st.form_submit_button("➕ Add event")
-
+        submitted = st.form_submit_button("➕ Add event")
 
     if submitted:
         if not ev_name.strip():
