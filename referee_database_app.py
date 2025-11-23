@@ -1329,20 +1329,27 @@ For flight options you can check:
         st.info("No events for this season yet.")
         return
 
-    # Merge existing availability for THIS ref only (privacy)
-    avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))]
-    avail_ref = avail_ref.set_index("event_id") if not avail_ref.empty else pd.DataFrame()
+    # Existing availability for THIS referee & season (for privacy)
+    avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))].copy()
+    if not avail_ref.empty:
+        avail_ref = avail_ref.set_index("event_id")
+    else:
+        avail_ref = None
 
-    # Build editable table
-    display_df = season_events[["event_id", "start_date", "end_date", "event_name", "location"]].copy()
-    display_df["available"] = False
-    display_df["airfare_estimate"] = ""
+    # Base table with hidden event_id tracked separately
+    base_df = season_events[["event_id", "start_date", "end_date", "event_name", "location"]].copy()
+    base_df["available"] = False
+    base_df["airfare_estimate"] = ""
 
-    for i, r in display_df.iterrows():
+    for i, r in base_df.iterrows():
         ev_id = r["event_id"]
-        if not avail_ref.empty and ev_id in avail_ref.index:
-            display_df.at[i, "available"] = (avail_ref.loc[ev_id]["available"] == "True")
-            display_df.at[i, "airfare_estimate"] = avail_ref.loc[ev_id]["airfare_estimate"]
+        if avail_ref is not None and ev_id in avail_ref.index:
+            base_df.at[i, "available"] = (avail_ref.loc[ev_id]["available"] == "True")
+            base_df.at[i, "airfare_estimate"] = avail_ref.loc[ev_id]["airfare_estimate"]
+
+    # We keep event_ids in a separate list and do NOT show them in the table
+    event_ids = list(base_df["event_id"])
+    display_df = base_df.drop(columns=["event_id"])
 
     st.markdown(f"### Availability for {ref_row['first_name']} {ref_row['last_name']} – Season {selected_season}")
 
@@ -1354,21 +1361,24 @@ For flight options you can check:
             "available": st.column_config.CheckboxColumn("Available"),
             "airfare_estimate": st.column_config.TextColumn("Airfare estimate (e.g. 500 USD)"),
         },
-        disabled=["event_id", "start_date", "end_date", "event_name", "location"],
+        disabled=["start_date", "end_date", "event_name", "location"],
     )
 
     if st.button("📨 Submit availability"):
         # Clear old availability for this ref & season
         avail = avail[~((avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season)))]
 
+        # Re-align index to match event_ids[]
+        edited_reset = edited.reset_index(drop=True)
+
         # Insert new
         new_rows = []
         now_str = datetime.utcnow().isoformat()
 
-        for _, r in edited.iterrows():
+        for i, r in edited_reset.iterrows():
+            ev_id = event_ids[i]
             available = bool(r["available"])
             airfare = str(r["airfare_estimate"]).strip()
-            ev_id = r["event_id"]
             new_rows.append({
                 "avail_id": new_id(),
                 "ref_id": ref_id,
