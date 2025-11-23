@@ -1087,7 +1087,6 @@ def page_referee_search():
             else:
                 st.caption("No passport uploaded.")
 
-
 # =========================
 # PAGE: ADMIN – EVENTS
 # =========================
@@ -1098,15 +1097,14 @@ def page_admin_events():
 
     events = load_events()
 
-    st.markdown("Use this page to **add, edit, or delete events** for each year/season.")
+    st.markdown("Use this page to **add, edit, or delete events** for each season.")
 
-    # ---------------------------------------------------------
-    # ADD EVENT FORM
-    # ---------------------------------------------------------
-    _default_arrival = date.today()
-    _default_departure = date.today()
+    # ---------------------------------------------
+    # ADD NEW EVENT
+    # ---------------------------------------------
+    st.subheader("➕ Add New Event")
 
-    with st.form("event_form"):
+    with st.form("add_event_form"):
         c1, c2, c3 = st.columns(3)
         with c1:
             season = st.text_input("Season", value=str(date.today().year))
@@ -1117,37 +1115,25 @@ def page_admin_events():
 
         c4, c5, c6 = st.columns(3)
         with c4:
-            location = st.text_input("Location (city/country)", value="")
-        with c5:
             ev_name = st.text_input("Event name", value="")
+        with c5:
+            location = st.text_input("Location (city/country)", value="")
         with c6:
             destination_airport = st.text_input("Destination airport (e.g. BKK, DOH)", value="")
 
         c7, c8, _ = st.columns(3)
         with c7:
-            arrival_date = st.date_input(
-                "Arrival date",
-                value=_default_arrival,
-                help="Recommended arrival date for officials",
-            )
+            arrival_date = st.date_input("Arrival date", value=start_date)
         with c8:
-            departure_date = st.date_input(
-                "Departure date",
-                value=_default_departure,
-                help="Recommended departure date for officials",
-            )
+            departure_date = st.date_input("Departure date", value=end_date)
 
-        requires_availability = st.selectbox(
-            "Requires Availability?",
-            ["Yes", "No"],
-            index=0
-        )
+        requires_availability = st.selectbox("Requires Availability?", ["Yes", "No"], index=0)
 
-        submitted = st.form_submit_button("➕ Add event")
+        add_submit = st.form_submit_button("💾 Add Event")
 
-    if submitted:
+    if add_submit:
         if not ev_name.strip():
-            st.error("Please enter event name.")
+            st.error("Event name is required.")
         elif end_date < start_date:
             st.error("End date must be on or after start date.")
         elif departure_date < arrival_date:
@@ -1155,7 +1141,7 @@ def page_admin_events():
         else:
             new_ev = pd.DataFrame([{
                 "event_id": new_id(),
-                "season": str(season).strip(),
+                "season": season.strip(),
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
                 "event_name": ev_name.strip(),
@@ -1165,111 +1151,97 @@ def page_admin_events():
                 "departure_date": departure_date.isoformat(),
                 "requires_availability": requires_availability,
             }])
+
             events = pd.concat([events, new_ev], ignore_index=True)
             save_events(events)
-            st.success("Event added ✅")
+            st.success("Event added successfully ✅")
             st.rerun()
 
-    # ---------------------------------------------------------
+    # ---------------------------------------------
     # SHOW EVENTS
-    # ---------------------------------------------------------
-    st.markdown("### Existing events")
-    if events.empty:
-        st.info("No events yet.")
-    else:
-        events_disp = events.copy()
-        events_disp = events_disp.sort_values(["season", "start_date", "event_name"])
-        display_cols = [c for c in events_disp.columns if c != "event_id"]
-        st.dataframe(events_disp[display_cols], use_container_width=True)
+    # ---------------------------------------------
+    st.markdown("---")
+    st.subheader("📘 Existing Events")
 
-    # ---------------------------------------------------------
+    if events.empty:
+        st.info("No events added yet.")
+    else:
+        df_disp = events.copy()
+        df_disp = df_disp.sort_values(["season", "start_date", "event_name"])
+        st.dataframe(df_disp.drop(columns=["event_id"]), use_container_width=True)
+
+    # ---------------------------------------------
     # EDIT / DELETE EVENT
-    # ---------------------------------------------------------
+    # ---------------------------------------------
     if not events.empty:
         st.markdown("---")
-        st.subheader("✏️ Edit / 🗑️ Delete event")
+        st.subheader("✏️ Edit or 🗑 Delete Event")
 
         events_sorted = events.sort_values(["season", "start_date", "event_name"])
+
         labels = []
         id_map = {}
         for _, r in events_sorted.iterrows():
-            s = str(r["season"])
-            sd = str(r["start_date"])
-            ed = str(r["end_date"])
-            nm = str(r["event_name"])
-            loc = str(r["location"])
-            label = f"{s} – {sd} to {ed} – {nm} ({loc})"
-            labels.append(label)
-            id_map[label] = r["event_id"]
+            lbl = f"{r['season']} – {r['start_date']} to {r['end_date']} – {r['event_name']} ({r['location']})"
+            labels.append(lbl)
+            id_map[lbl] = r["event_id"]
 
-        sel_label = st.selectbox("Select event to edit/delete", ["(None)"] + labels)
+        sel_label = st.selectbox("Select event", ["(None)"] + labels)
+
         if sel_label != "(None)":
             ev_id = id_map[sel_label]
-            ev_row = events[events["event_id"] == ev_id].iloc[0]
+            ev = events[events["event_id"] == ev_id].iloc[0]
 
-            st.markdown("#### Edit event")
+            # Safe date parsing:
+            sd_val = _parse_date_str(ev.get("start_date", ""), date.today())
+            ed_val = _parse_date_str(ev.get("end_date", ""), date.today())
+            arr_val = _parse_date_str(ev.get("arrival_date", ""), sd_val)
+            dep_val = _parse_date_str(ev.get("departure_date", ""), ed_val)
+
+            st.markdown("### Edit Event")
 
             with st.form("edit_event_form"):
-                sd_parsed = _parse_date_str(ev_row.get("start_date", ""), date.today())
-                ed_parsed = _parse_date_str(ev_row.get("end_date", ""), date.today())
-                arr_parsed = _parse_date_str(ev_row.get("arrival_date", ""), sd_parsed)
-                dep_parsed = _parse_date_str(ev_row.get("departure_date", ""), ed_parsed)
-
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    season_edit = st.text_input("Season", value=str(ev_row["season"]))
+                    season_edit = st.text_input("Season", value=str(ev["season"]))
                 with c2:
-                    sd_edit = st.date_input(
-                        "Start date",
-                        value=sd_parsed,
-                    )
+                    sd_edit = st.date_input("Start date", value=sd_val)
                 with c3:
-                    ed_edit = st.date_input(
-                        "End date",
-                        value=ed_parsed,
-                    )
+                    ed_edit = st.date_input("End date", value=ed_val)
 
                 c4, c5, c6 = st.columns(3)
                 with c4:
-                    loc_edit = st.text_input("Location (city/country)", value=str(ev_row["location"]))
+                    name_edit = st.text_input("Event name", value=str(ev["event_name"]))
                 with c5:
-                    name_edit = st.text_input("Event name", value=str(ev_row["event_name"]))
+                    loc_edit = st.text_input("Location", value=str(ev["location"]))
                 with c6:
-                    dest_edit = st.text_input(
-                        "Destination airport (e.g. BKK, DOH)",
-                        value=str(ev_row.get("destination_airport", "")),
-                    )
+                    dest_edit = st.text_input("Destination airport", value=str(ev.get("destination_airport", "")))
 
                 c7, c8, _ = st.columns(3)
                 with c7:
-                    arr_edit = st.date_input(
-                        "Arrival date",
-                        value=arr_parsed,
-                    )
+                    arr_edit = st.date_input("Arrival date", value=arr_val)
                 with c8:
-                    dep_edit = st.date_input(
-                        "Departure date",
-                        value=dep_parsed,
-                    )
+                    dep_edit = st.date_input("Departure date", value=dep_val)
 
                 req_edit = st.selectbox(
                     "Requires Availability?",
                     ["Yes", "No"],
-                    index=["Yes", "No"].index(ev_row.get("requires_availability", "Yes"))
+                    index=["Yes", "No"].index(ev.get("requires_availability", "Yes"))
                 )
 
-                save_btn = st.form_submit_button("💾 Save changes")
+                save_edit = st.form_submit_button("💾 Save Changes")
 
-            if save_btn:
+            if save_edit:
                 if not name_edit.strip():
-                    st.error("Please enter event name.")
+                    st.error("Event name is required.")
                 elif ed_edit < sd_edit:
-                    st.error("End date must be on or after start date.")
+                    st.error("End date must be after start date.")
                 elif dep_edit < arr_edit:
-                    st.error("Departure date must be on or after arrival date.")
+                    st.error("Departure date must be after arrival date.")
                 else:
                     idx = events[events["event_id"] == ev_id].index[0]
-                    events.loc[idx, "season"] = str(season_edit).strip()
+
+                    events.loc[idx, "season"] = season_edit.strip()
                     events.loc[idx, "start_date"] = sd_edit.isoformat()
                     events.loc[idx, "end_date"] = ed_edit.isoformat()
                     events.loc[idx, "event_name"] = name_edit.strip()
@@ -1280,30 +1252,30 @@ def page_admin_events():
                     events.loc[idx, "requires_availability"] = req_edit
 
                     save_events(events)
-                    st.success("Event updated ✅")
+                    st.success("Event updated successfully ✅")
                     st.rerun()
 
-            st.markdown("#### 🗑️ Delete this event")
-            confirm_del = st.checkbox("Yes, delete this event permanently.")
+            st.markdown("---")
+            st.subheader("🗑 Delete Event")
 
-            if st.button("🗑️ Delete event") and confirm_del:
+            confirm = st.checkbox("Yes, delete this event permanently.")
+
+            if st.button("Delete Event") and confirm:
                 events = events[events["event_id"] != ev_id]
                 save_events(events)
 
-                avail_all = load_availability()
-                if not avail_all.empty:
-                    avail_all = avail_all[avail_all["event_id"] != ev_id]
-                    save_availability(avail_all)
+                # Remove linked availability
+                avail = load_availability()
+                avail = avail[avail["event_id"] != ev_id]
+                save_availability(avail)
 
+                # Remove linked assignments
                 assignments = load_assignments()
-                if not assignments.empty:
-                    assignments = assignments[assignments["event_id"] != ev_id]
-                    save_assignments(assignments)
+                assignments = assignments[assignments["event_id"] != ev_id]
+                save_assignments(assignments)
 
-                st.success("Event deleted ✅")
+                st.success("Event deleted successfully.")
                 st.rerun()
-
-
 
 # =========================
 # PAGE: REFEREE AVAILABILITY FORM – PUBLIC
