@@ -1294,63 +1294,24 @@ def page_availability_form():
 
     st.markdown(
         """
-Please complete your availability for AVC Beach Events.  
-This form is **private** — only you and administrators can view your submission.
+Please select your name, choose the season, and tick which events you are available for.  
+You may also provide a **tentative airfare estimate** from your origin airport to the event country.
+
+For flight options you can check:  
+[Trip.com – Flights](https://www.trip.com/flights/)
 """
     )
 
-    # =====================================================
-    # STEP 1 — CATEGORY SELECTION (Referee / Control Committee)
-    # =====================================================
-    st.markdown("### 1️⃣ Select your category")
+    refs["display"] = refs.apply(referee_display_name, axis=1)
+    refs = refs.sort_values("display")
 
-    category = st.selectbox(
-        "Are you a Referee or Control Committee?",
-        ["", "Referee", "Control Committee"],
-        index=0
-    )
-
-    if category == "":
-        st.info("Please choose your category above.")
-        return
-
-    # Filter referees matching category
-    refs_filtered = refs[refs["position_type"] == category].copy()
-    if refs_filtered.empty:
-        st.error(f"No {category} found in database.")
-        return
-
-    # Show only ID, Name (NAT)
-    refs_filtered["display"] = refs_filtered.apply(
-        lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
-        axis=1
-    )
-
-    # =====================================================
-    # STEP 2 — REFEREE SELECT
-    # =====================================================
-    st.markdown("### 2️⃣ Select your name")
-
-    ref_label = st.selectbox(
-        "Your name",
-        [""] + refs_filtered["display"].tolist()
-    )
-
-    if ref_label == "":
-        st.info("Please select your name above.")
-        return
-
-    ref_row = refs_filtered[refs_filtered["display"] == ref_label].iloc[0]
+    ref_label = st.selectbox("Your name", refs["display"].tolist())
+    ref_row = refs[refs["display"] == ref_label].iloc[0]
     ref_id = ref_row["ref_id"]
 
-    st.markdown(f"### 👋 Hello **{ref_row['first_name']} {ref_row['last_name']}**")
+    st.markdown(f"### Hello, **{ref_row['first_name']} {ref_row['last_name']}** 👋")
 
-    # =====================================================
-    # STEP 3 — SELECT SEASON
-    # =====================================================
     season_list = sorted(events["season"].unique())
-    st.markdown("### 3️⃣ Choose the season")
-
     selected_season = st.selectbox("Season", season_list)
 
     season_events = events[events["season"] == selected_season].copy()
@@ -1358,7 +1319,6 @@ This form is **private** — only you and administrators can view your submissio
         st.info("No events for this season yet.")
         return
 
-    # Load previously saved availability
     avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))].copy()
     avail_map = {}
     if not avail_ref.empty:
@@ -1366,13 +1326,10 @@ This form is **private** — only you and administrators can view your submissio
             eid = r["event_id"]
             avail_map[eid] = {
                 "available": str(r.get("available", "")).lower() == "true",
-                "airfare_estimate": r.get("airfare_estimate", "")
+                "airfare_estimate": r.get("airfare_estimate", ""),
             }
 
-    # =====================================================
-    # STEP 4 — EVENT AVAILABILITY INPUT
-    # =====================================================
-    st.markdown(f"### 4️⃣ Availability for **Season {selected_season}**")
+    st.markdown(f"### Availability for Season {selected_season}")
 
     per_event_inputs = []
     season_events = season_events.sort_values(["start_date", "event_name"])
@@ -1380,36 +1337,40 @@ This form is **private** — only you and administrators can view your submissio
     for _, ev in season_events.iterrows():
         ev_id = ev["event_id"]
         ev_name = ev["event_name"]
+        start_d = ev.get("start_date", "")
+        end_d = ev.get("end_date", "")
+        arr_d = ev.get("arrival_date", "")
+        dep_d = ev.get("departure_date", "")
+        dest_airport = ev.get("destination_airport", "")
+        loc = ev.get("location", "")
 
         defaults = avail_map.get(ev_id, {"available": False, "airfare_estimate": ""})
         default_available = defaults["available"]
         default_airfare = defaults["airfare_estimate"]
 
-        # Event box
         st.markdown("---")
-        st.markdown(f"#### 📌 {ev_name} ({ev['location']})")
+        st.markdown(f"#### {ev_name} ({loc})")
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.write(f"**Start date:** {ev.get('start_date', '')}")
-            st.write(f"**End date:** {ev.get('end_date', '')}")
-        with col2:
-            st.write(f"**Arrival date:** {ev.get('arrival_date', '')}")
-            st.write(f"**Departure date:** {ev.get('departure_date', '')}")
-        with col3:
-            st.write(f"**Destination airport:** {ev.get('destination_airport', '')}")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.write(f"**Start date:** {start_d}")
+            st.write(f"**End date:** {end_d}")
+        with c2:
+            st.write(f"**Arrival date:** {arr_d}")
+            st.write(f"**Departure date:** {dep_d}")
+        with c3:
+            st.write(f"**Destination airport:** {dest_airport}")
 
-        # Inputs
         available = st.checkbox(
             f"Available for this event",
             value=default_available,
-            key=f"avail_{ev_id}"
+            key=f"avail_{ev_id}",
         )
 
         airfare_estimate = st.text_input(
             "Estimated airfare (optional)",
             value=str(default_airfare),
-            key=f"airfare_{ev_id}"
+            key=f"airfare_{ev_id}",
         )
 
         per_event_inputs.append({
@@ -1418,11 +1379,9 @@ This form is **private** — only you and administrators can view your submissio
             "airfare_estimate": airfare_estimate.strip(),
         })
 
-    # =====================================================
-    # STEP 5 — SUBMIT
-    # =====================================================
     if st.button("📨 Submit availability"):
         avail = avail[~((avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season)))]
+
         now_str = datetime.utcnow().isoformat()
 
         new_rows = []
@@ -1443,13 +1402,9 @@ This form is **private** — only you and administrators can view your submissio
         save_availability(avail)
         st.success("Thank you! Your availability has been recorded. ✅")
 
-    # =====================================================
-    # STEP 6 — REFEREE SUMMARY
-    # =====================================================
-    st.markdown("### 📄 Your saved availability (summary)")
+    st.markdown("### Your saved availability (summary)")
     avail_me = load_availability()
     avail_me = avail_me[(avail_me["ref_id"] == ref_id) & (avail_me["season"] == str(selected_season))]
-
     if avail_me.empty:
         st.info("No previous availability saved for this season.")
     else:
@@ -1466,6 +1421,7 @@ This form is **private** — only you and administrators can view your submissio
             "timestamp",
         ]
         st.dataframe(merged[view_cols], use_container_width=True)
+
 
 # =========================
 # PAGE: ADMIN – VIEW AVAILABILITY
