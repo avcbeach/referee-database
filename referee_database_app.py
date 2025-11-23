@@ -1103,8 +1103,7 @@ def page_admin_events():
     # ---------------------------------------------------------
     # ADD EVENT FORM
     # ---------------------------------------------------------
-    _default_arrival = date.today()
-    _default_departure = date.today()
+
 
     with st.form("event_form"):
         c1, c2, c3 = st.columns(3)
@@ -1127,13 +1126,13 @@ def page_admin_events():
         with c7:
             arrival_date = st.date_input(
                 "Arrival date",
-                value=_default_arrival,
+                value=date.today,
                 help="Recommended arrival date for officials",
             )
         with c8:
             departure_date = st.date_input(
                 "Departure date",
-                value=_default_departure,
+                value=date.today,
                 help="Recommended departure date for officials",
             )
 
@@ -1239,12 +1238,12 @@ def page_admin_events():
                 with c7:
                     arr_edit = st.date_input(
                         "Arrival date",
-                        value=_parse_date_str(ev_row.get("_default_arrival", ""), sd_edit),
+                        value=_parse_date_str(ev_row.get("arrival_date", ""), sd_edit),
                     )
                 with c8:
                     dep_edit = st.date_input(
                         "Departure date",
-                        value=_parse_date_str(ev_row.get("_default_departure", ""), ed_edit),
+                        value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit),
                     )
 
                 req_edit = st.selectbox(
