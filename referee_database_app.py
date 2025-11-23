@@ -1239,12 +1239,12 @@ def page_admin_events():
                 with c7:
                     arr_edit = st.date_input(
                         "Arrival date",
-                        value=_parse_date_str(ev_row.get("arrival_date", ""), sd_edit),
+                        value=_parse_date_str(ev_row.get("_default_arrival", ""), sd_edit),
                     )
                 with c8:
                     dep_edit = st.date_input(
                         "Departure date",
-                        value=_parse_date_str(ev_row.get("departure_date", ""), ed_edit),
+                        value=_parse_date_str(ev_row.get("_default_departure", ""), ed_edit),
                     )
 
                 req_edit = st.selectbox(
