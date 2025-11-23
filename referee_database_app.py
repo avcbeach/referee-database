@@ -1389,13 +1389,18 @@ This form is **private** — only you and administrators can view your submissio
     # Filter referees matching category
     refs_filtered = refs[refs["position_type"] == category].copy()
     if refs_filtered.empty:
-        st.error(f"No {category} found in database.")
-        return
+    st.error(f"No {category} found in database.")
+    return
 
-    # Show only ID, Name (NAT)
+    # Create display name
     refs_filtered["display"] = refs_filtered.apply(
-        lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
-        axis=1
+    lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
+    axis=1
+)
+
+    # 🔥 Sort alphabetically by LAST NAME then FIRST NAME
+    refs_filtered = refs_filtered.sort_values(["last_name", "first_name"], ascending=True)
+
     )
 
     # =====================================================
@@ -1692,9 +1697,9 @@ def main():
         page = st.sidebar.radio(
             "Go to",
             [
-                "Referee Availability Form",
-                "Referee Search",
-                "Admin – Referees",
+                "Referees & Officials Availability Form",
+                "Admin - Referees & Officials Search",
+                "Admin – Referees & Officials",
                 "Admin – Events",
                 "Admin – View Availability",
             ],
@@ -1703,20 +1708,19 @@ def main():
         page = st.sidebar.radio(
             "Go to",
             [
-                "Referee Availability Form",
-                "Referee Search",
+                "Referees & Officials Availability Form",
             ],
         )
 
-    if page == "Admin – Referees":
+    if page == "Admin – Referees & Officials":
         page_admin_referees()
     elif page == "Admin – Events":
         page_admin_events()
     elif page == "Admin – View Availability":
         page_admin_availability()
-    elif page == "Referee Search":
+    elif page == "Admin - Referees & Officials Search":
         page_referee_search()
-    elif page == "Referee Availability Form":
+    elif page == "Referees & Officials Availability Form":
         page_availability_form()
 
 
