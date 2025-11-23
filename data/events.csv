@@ -4,4 +4,5 @@ event_id,season,start_date,end_date,event_name,location,destination_airport,arri
 45aa5227-b88a-4324-b01e-19e69e992844,2026,2026-04-22,2026-04-30,2026 Asian Beach Games,"Sanya, China",SYX,2026-04-20,2026-05-01,No
 8e68d30d-fd68-43ef-bcb1-31fbaa280e19,2026,2026-06-04,2026-06-07,AVC Beach Tour 2nd Pingtung Open,"Pingtung, Chinese Taipei",KHH,2026-06-02,2026-06-08,Yes
 8721c1a4-0177-4160-ba96-9667d9a8324c,2026,2026-06-11,2026-06-14,AVC Beach Tour Jizzax Open,"Jizzax, Uzbekistan",TAS,2026-06-09,2026-06-15,Yes
-af5cf5ea-1fe3-4fa1-af56-fc50c7cc317a,2026,,,Asian U18 Beach Volleyball Championships,TBD,,,,Yes
+af5cf5ea-1fe3-4fa1-af56-fc50c7cc317a,2026,NaT,NaT,Asian U18 Beach Volleyball Championships,TBD,,NaT,NaT,Yes
+2ac2a5a3-03ae-41f2-85fe-2c9ac624fba2,2026,2025-11-23,2025-11-23,AVC Beach Tour 'Location' Open,China,,2025-11-23,2025-11-23,Yes
