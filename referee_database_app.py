@@ -989,103 +989,156 @@ If an imported row has a FIVB ID that already exists, it will be **skipped**.
 
 
 # =========================
-# PAGE: REFEREE SEARCH (PUBLIC)
+# PAGE: REFEREE SEARCH (PUBLIC) — With Search & Filters
 # =========================
 
 def page_referee_search():
-    st.title("🔎 Referee Search & Profile")
+    require_admin()   # 🔐 makes page admin-only
+    st.title("🔒 Admin – Referee Search")
 
     refs = load_referees()
     if refs.empty:
         st.info("No referees in database yet.")
         return
 
-    refs = refs.copy()
-    refs["display"] = refs.apply(referee_display_name, axis=1)
-    refs = refs.sort_values(["last_name", "first_name"])
+    # ============================
+    # STEP 1 — Category Filter
+    # ============================
+    st.markdown("### 1️⃣ Select Category")
 
-    options = []
-    mapping = {}
-    for _, r in refs.iterrows():
-        label = f"{r['first_name']} {r['last_name']} ({r['nationality']})"
-        options.append(label)
-        mapping[label] = r["ref_id"]
+    category = st.selectbox(
+        "Choose category",
+        ["", "Referee", "Control Committee"],
+        index=0
+    )
 
-    sel_label = st.selectbox("Select a referee", options)
-    sel_id = mapping[sel_label]
-    prof = refs[refs["ref_id"] == sel_id].iloc[0]
+    if category == "":
+        st.info("Please choose a category.")
+        return
+
+    refs_filtered = refs[refs["position_type"] == category].copy()
+
+    if refs_filtered.empty:
+        st.warning(f"No profiles under: {category}")
+        return
+
+    # ============================
+    # STEP 2 — Filters (Search, Nationality, Zone)
+    # ============================
+    st.markdown("### 2️⃣ Search & Filters")
+
+    colA, colB, colC = st.columns(3)
+
+    with colA:
+        search_text = st.text_input("Search name", placeholder="Enter name...")
+    with colB:
+        nationality_filter = st.selectbox(
+            "Nationality",
+            [""] + sorted(refs_filtered["nationality"].dropna().unique().tolist())
+        )
+    with colC:
+        zone_filter = st.selectbox(
+            "Zone",
+            [""] + sorted(refs_filtered["zone"].dropna().unique().tolist())
+        )
+
+    # Apply filters
+    if search_text.strip():
+        s = search_text.strip().lower()
+        refs_filtered = refs_filtered[
+            refs_filtered["first_name"].str.lower().str.contains(s) |
+            refs_filtered["last_name"].str.lower().str.contains(s)
+        ]
+
+    if nationality_filter != "":
+        refs_filtered = refs_filtered[refs_filtered["nationality"] == nationality_filter]
+
+    if zone_filter != "":
+        refs_filtered = refs_filtered[refs_filtered["zone"] == zone_filter]
+
+    if refs_filtered.empty:
+        st.warning("No results match your filters.")
+        return
+
+    # Display labels
+    refs_filtered["display"] = refs_filtered.apply(
+        lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
+        axis=1
+    )
+
+    # ============================
+    # STEP 3 — Select Person
+    # ============================
+    st.markdown("### 3️⃣ Select Name")
+
+    ref_label = st.selectbox("Name", [""] + refs_filtered["display"].tolist())
+
+    if ref_label == "":
+        st.info("Select a name to show profile.")
+        return
+
+    prof = refs_filtered[refs_filtered["display"] == ref_label].iloc[0]
+
+    # ============================
+    # STEP 4 — Display Profile
+    # ============================
+    st.markdown("---")
+    st.markdown(f"## 👤 {prof['first_name']} {prof['last_name']}")
 
     colL, colR = st.columns([2, 1])
 
     with colL:
-        st.markdown(f"### {prof['first_name']} {prof['last_name']}")
-        st.write(f"**Gender:** {prof['gender']}")
+        st.write(f"**Category:** {prof['position_type']}")
+        if prof["position_type"] == "Control Committee":
+            st.write(f"**Role:** {prof['cc_role']}")
+        if prof["position_type"] == "Referee":
+            st.write(f"**Referee Level:** {prof['ref_level']}")
+
         st.write(f"**Nationality:** {prof['nationality']}")
         st.write(f"**Zone:** {prof['zone']}")
-        st.write(f"**Position:** {prof['position_type']}")
-        if prof["position_type"] == "Control Committee":
-            st.write(f"**CC Role:** {prof['cc_role']}")
-        if prof["position_type"] == "Referee":
-            st.write(f"**Referee level:** {prof['ref_level']}")
-        st.write(f"**Type:** {prof['type']}")
-        st.write(f"**Shirt size:** {prof['shirt_size']}")
-        st.write(f"**Shorts size:** {prof['shorts_size']}")
+        st.write(f"**Gender:** {prof['gender']}")
         st.write(f"**Birthdate:** {prof['birthdate']}")
-        st.write(f"**Course year:** {prof['course_year']}")
+        st.write(f"**Course Year:** {prof['course_year']}")
         st.write(f"**FIVB ID:** {prof['fivb_id']}")
-        st.write(f"**Origin airport:** {prof['origin_airport']}")
+        st.write(f"**Origin Airport:** {prof['origin_airport']}")
         st.write(f"**Email:** {prof['email']}")
         st.write(f"**Phone:** {prof['phone']}")
+        st.write(f"**Shirt Size:** {prof['shirt_size']}")
+        st.write(f"**Shorts Size:** {prof['shorts_size']}")
         st.write(f"**Active:** {prof['active']}")
 
     with colR:
         st.markdown("#### Photo ID")
         photo_rel = prof.get("photo_file", "")
         if isinstance(photo_rel, str) and photo_rel:
-            photo_path = os.path.join(DATA_DIR, photo_rel)
-            if os.path.exists(photo_path):
-                st.image(photo_path, use_container_width=True)
+            path = os.path.join(DATA_DIR, photo_rel)
+            if os.path.exists(path):
+                st.image(path, use_container_width=True)
             else:
-                st.caption("Photo path saved, but file not found locally.")
+                st.caption("Photo file not found.")
         else:
             st.caption("No photo uploaded.")
 
-        # PASSPORT – ADMIN ONLY
         st.markdown("#### Passport (Admin only)")
-        is_admin = st.session_state.get("is_admin", False)
-
-        if not is_admin:
-            st.caption("Passport is private and only visible to administrators.")
+        if not st.session_state.get("is_admin", False):
+            st.caption("Passport is private.")
         else:
             pass_rel = prof.get("passport_file", "")
             if isinstance(pass_rel, str) and pass_rel:
-                pass_path = os.path.join(DATA_DIR, pass_rel)
-                if os.path.exists(pass_path):
-                    ext = os.path.splitext(pass_path)[1].lower()
-                    try:
-                        with open(pass_path, "rb") as f:
-                            data = f.read()
-                        if ext in [".jpg", ".jpeg", ".png"]:
-                            st.image(pass_path, caption="Passport image", use_container_width=True)
-                        elif ext == ".pdf":
-                            st.download_button(
-                                "Download passport (PDF)",
-                                data=data,
-                                file_name=os.path.basename(pass_path),
-                                mime="application/pdf",
-                            )
-                        else:
-                            st.download_button(
-                                "Download passport file",
-                                data=data,
-                                file_name=os.path.basename(pass_path),
-                            )
-                    except Exception:
-                        st.caption("Passport path saved, but file could not be opened.")
+                p = os.path.join(DATA_DIR, pass_rel)
+                if os.path.exists(p):
+                    ext = os.path.splitext(p)[1].lower()
+                    with open(p, "rb") as f:
+                        data = f.read()
+                    if ext in [".jpg", ".jpeg", ".png"]:
+                        st.image(p, caption="Passport", use_container_width=True)
+                    else:
+                        st.download_button("Download Passport", data, file_name=os.path.basename(p))
                 else:
-                    st.caption("Passport path saved, but file not found locally.")
+                    st.caption("Passport file not found.")
             else:
                 st.caption("No passport uploaded.")
+
 
 # =========================
 # PAGE: ADMIN – EVENTS
