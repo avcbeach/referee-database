@@ -1136,7 +1136,7 @@ def page_admin_events():
             "Requires Availability?",
             ["Yes", "No"],
             index=0
-        )       
+            )       
         submitted = st.form_submit_button("➕ Add event")
 
     if submitted:
