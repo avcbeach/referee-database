@@ -1400,7 +1400,7 @@ This form is **private** — only you and administrators can view your submissio
 
     # Sort alphabetically by last name, then first name
     refs_filtered = refs_filtered.sort_values(
-        ["last_name", "first_name"],
+        ["first_name", "last_name"],
         ascending=[True, True]
     )
 
