@@ -1372,7 +1372,11 @@ This form is **private** — only you and administrators can view your submissio
 
     selected_season = st.selectbox("Season", season_list)
 
-    season_events = events[events["season"] == selected_season].copy()
+    season_events = events[
+    (events["season"] == selected_season) &
+    (events["requires_availability"].str.strip().str.lower() == "yes")
+].copy()
+
     if season_events.empty:
         st.info("No events for this season yet.")
         return
