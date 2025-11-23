@@ -1548,125 +1548,145 @@ def page_admin_availability():
     avail = load_availability()
     assignments = load_assignments()
 
-    if avail.empty and assignments.empty:
-        st.info("No availability or nominations yet.")
+    if refs.empty or events.empty:
+        st.info("No data available yet.")
         return
 
-    seasons_avail = avail["season"].unique().tolist() if not avail.empty else []
-    seasons_events = events["season"].unique().tolist() if not events.empty else []
-    season_list = sorted(set(seasons_avail + seasons_events))
-    if not season_list:
-        st.info("No seasons found.")
-        return
+    # Build season selector
+    seasons = sorted(events["season"].unique())
+    selected_season = st.selectbox("Select season", seasons)
 
-    selected_season = st.selectbox("Season", season_list)
+    # Filter by season
+    season_events = events[events["season"] == selected_season]
+    season_avail = avail[avail["season"] == str(selected_season)]
+    season_assign = assignments.copy()
 
-    avail_season = avail[avail["season"] == str(selected_season)].copy()
-    events_season = events[events["season"] == str(selected_season)].copy()
+    # Build merged base table
+    refs_small = refs[["ref_id", "first_name", "last_name", "nationality", "zone", "position_type"]]
+    ev_small = season_events[["event_id", "season", "event_name", "start_date", "end_date", "location"]]
 
-    if avail_season.empty and assignments.empty:
-        st.info("No data for this season.")
-        return
+    merged = season_avail.merge(refs_small, on="ref_id", how="left")
+    merged = merged.merge(ev_small, on=["event_id", "season"], how="left")
 
-    refs_small = refs[["ref_id", "first_name", "last_name", "nationality", "zone"]].copy()
-    events_small = events_season[["event_id", "season", "event_name", "start_date", "end_date", "location"]].copy()
-
-    if avail_season.empty:
-        base = pd.DataFrame(columns=[
-            "ref_id",
-            "event_id",
-            "available",
-            "airfare_estimate",
-            "timestamp",
-            "first_name",
-            "last_name",
-            "nationality",
-            "zone",
-            "event_name",
-            "start_date",
-            "end_date",
-            "location",
-        ])
-    else:
-        merged = avail_season.merge(refs_small, on="ref_id", how="left")
-        merged = merged.merge(events_small, on=["event_id", "season"], how="left")
-        base = merged
-
-    assign_season = assignments.copy()
-    if not assign_season.empty:
-        assign_season = assign_season.merge(
-            events_season[["event_id", "season"]],
-            on="event_id",
-            how="inner",
-        )
-        assign_pairs = set(zip(assign_season["ref_id"], assign_season["event_id"]))
-    else:
-        assign_pairs = set()
-
-    if not assignments.empty and not events_season.empty:
-        for _, a in assign_season.iterrows():
-            key = (a["ref_id"], a["event_id"])
-            if base.empty or not (
-                (base["ref_id"] == a["ref_id"]) &
-                (base["event_id"] == a["event_id"])
-            ).any():
-                ref_row = refs_small[refs_small["ref_id"] == a["ref_id"]]
-                ev_row = events_small[events_small["event_id"] == a["event_id"]]
-                if ref_row.empty or ev_row.empty:
-                    continue
-                rr = ref_row.iloc[0]
-                ee = ev_row.iloc[0]
-                new_row = {
+    # Add nominated rows not present in availability
+    nominated_extra = []
+    for _, a in season_assign.iterrows():
+        if (a["ref_id"], a["event_id"]) not in zip(merged["ref_id"], merged["event_id"]):
+            ref_row = refs_small[refs_small["ref_id"] == a["ref_id"]]
+            ev_row = ev_small[ev_small["event_id"] == a["event_id"]]
+            if not ref_row.empty and not ev_row.empty:
+                r = ref_row.iloc[0]
+                e = ev_row.iloc[0]
+                nominated_extra.append({
                     "ref_id": a["ref_id"],
                     "event_id": a["event_id"],
+                    "season": selected_season,
+                    "event_name": e["event_name"],
+                    "start_date": e["start_date"],
+                    "end_date": e["end_date"],
+                    "location": e["location"],
                     "available": "",
                     "airfare_estimate": "",
                     "timestamp": "",
-                    "first_name": rr["first_name"],
-                    "last_name": rr["last_name"],
-                    "nationality": rr["nationality"],
-                    "zone": rr["zone"],
-                    "event_name": ee["event_name"],
-                    "start_date": ee["start_date"],
-                    "end_date": ee["end_date"],
-                    "location": ee["location"],
-                }
-                base = pd.concat([base, pd.DataFrame([new_row])], ignore_index=True)
+                    "first_name": r["first_name"],
+                    "last_name": r["last_name"],
+                    "nationality": r["nationality"],
+                    "zone": r["zone"],
+                    "position_type": r["position_type"],
+                })
 
-    if base.empty:
-        st.info("No availability or nominations to display.")
+    if nominated_extra:
+        merged = pd.concat([merged, pd.DataFrame(nominated_extra)], ignore_index=True)
+
+    if merged.empty:
+        st.info("No availability or nominations found for this season.")
         return
 
-    base["ref_name"] = base["first_name"].fillna("") + " " + base["last_name"].fillna("")
+    # Compute status
+    assign_pairs = set(zip(season_assign["ref_id"], season_assign["event_id"]))
 
-    def compute_status(r):
-        key = (r["ref_id"], r["event_id"])
+    def get_status(row):
+        key = (row["ref_id"], row["event_id"])
         if key in assign_pairs:
             return "Nominated"
-        if str(r.get("available", "")).lower() == "true":
+        if str(row["available"]).lower() == "true":
             return "Available"
-        if str(r.get("available", "")).lower() == "false":
-            return "Not available"
+        if str(row["available"]).lower() == "false":
+            return "Not Available"
         return "Unknown"
 
-    base["status"] = base.apply(compute_status, axis=1)
-    base = base.sort_values(["start_date", "event_name", "ref_name"])
+    merged["status"] = merged.apply(get_status, axis=1)
+    merged["ref_name"] = merged["first_name"] + " " + merged["last_name"]
+
+    st.markdown("## 🔍 Filters")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        event_filter = st.selectbox(
+            "Filter by event",
+            ["All"] + sorted(season_events["event_name"].unique())
+        )
+    with col2:
+        nat_filter = st.selectbox(
+            "Filter by nationality",
+            ["All"] + sorted(merged["nationality"].dropna().unique())
+        )
+    with col3:
+        zone_filter = st.selectbox(
+            "Filter by zone",
+            ["All"] + sorted(merged["zone"].dropna().unique())
+        )
+
+    col4, col5 = st.columns(2)
+    with col4:
+        pt_filter = st.selectbox(
+            "Filter by position",
+            ["All", "Referee", "Control Committee"]
+        )
+    with col5:
+        status_filter = st.selectbox(
+            "Filter by status",
+            ["All", "Nominated", "Available", "Not Available", "Unknown"]
+        )
+
+    # Apply filters
+    df = merged.copy()
+
+    if event_filter != "All":
+        df = df[df["event_name"] == event_filter]
+
+    if nat_filter != "All":
+        df = df[df["nationality"] == nat_filter]
+
+    if zone_filter != "All":
+        df = df[df["zone"] == zone_filter]
+
+    if pt_filter != "All":
+        df = df[df["position_type"] == pt_filter]
+
+    if status_filter != "All":
+        df = df[df["status"] == status_filter]
+
+    df = df.sort_values(["start_date", "event_name", "ref_name"])
+
+    st.markdown("## 📋 Availability & Nominations Table")
 
     view_cols = [
-        "start_date",
-        "end_date",
         "event_name",
         "location",
+        "start_date",
+        "end_date",
         "ref_name",
         "nationality",
         "zone",
+        "position_type",
         "status",
-        "available",
         "airfare_estimate",
         "timestamp",
     ]
 
-    st.dataframe(base[view_cols], use_container_width=True)
+    st.dataframe(df[view_cols], use_container_width=True)
+
 
 
 # =========================
