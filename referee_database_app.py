@@ -80,7 +80,7 @@ def _github_api_url(cfg, path):
 def github_read_file(path):
     """
     Read a file from GitHub repo. Returns bytes or None.
-    `path` should be repo-relative, e.g. "data/photos/xxx.jpg"
+    `path` should be repo-relative, e.g. "data/referees.csv"
     """
     cfg = github_config()
     if not cfg:
@@ -1290,74 +1290,153 @@ def page_admin_events():
 # PAGE 3: REFEREE AVAILABILITY FORM – PUBLIC
 # =========================
 
-def page_referee_availability_form():
-    st.title("📝 Referee Availability Form")
+def page_availability_form():
+    st.title("📝 Referee / Official Availability Form")
 
-    referees_df = load_referees()
-    events_df = load_events()
+    refs = load_referees()
+    events = load_events()
+    avail = load_availability()
 
-    if referees_df.empty:
-        st.warning("No referees in database.")
+    if refs.empty:
+        st.warning("No referees found. Admin must add referees first.")
+        return
+    if events.empty:
+        st.warning("No events found. Admin must add events first.")
         return
 
-    if events_df.empty:
-        st.info("No events added yet.")
-        return
+    st.markdown(
+        """
+Please select your name, choose the season, and tick which events you are available for.  
+You may also provide a **tentative airfare estimate** from your origin airport to the event country.
 
-    st.write("Please select your name and submit your availability confidentially.")
-
-    # Select referee
-    ref_names = referees_df.apply(
-        lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})", axis=1
+For flight options you can check:  
+[Trip.com – Flights](https://www.trip.com/flights/)
+"""
     )
-    selection = st.selectbox("Your name", ref_names)
 
-    selected_row = referees_df.iloc[list(ref_names).index(selection)]
-    ref_id = selected_row["referee_id"]
+    refs["display"] = refs.apply(referee_display_name, axis=1)
+    refs = refs.sort_values("display")
 
-    st.markdown(f"### Hello, **{selected_row['first_name']} {selected_row['last_name']}** 👋")
+    ref_label = st.selectbox("Your name", refs["display"].tolist())
+    ref_row = refs[refs["display"] == ref_label].iloc[0]
+    ref_id = ref_row["ref_id"]
 
-    # Sort events
-    events_df = events_df.sort_values("start_date")
+    st.markdown(f"### Hello, **{ref_row['first_name']} {ref_row['last_name']}** 👋")
 
-    st.markdown("### Availability for Each Event")
+    season_list = sorted(events["season"].unique())
+    selected_season = st.selectbox("Season", season_list)
 
-    availability_updates = []
+    season_events = events[events["season"] == selected_season].copy()
+    if season_events.empty:
+        st.info("No events for this season yet.")
+        return
 
-    for _, ev in events_df.iterrows():
+    # Existing availability for THIS referee & season (for privacy)
+    avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))].copy()
+    avail_map = {}
+    if not avail_ref.empty:
+        for _, r in avail_ref.iterrows():
+            eid = r["event_id"]
+            avail_map[eid] = {
+                "available": str(r.get("available", "")).lower() == "true",
+                "airfare_estimate": r.get("airfare_estimate", ""),
+            }
+
+    st.markdown(f"### Availability for Season {selected_season}")
+
+    # Build controls per event
+    per_event_inputs = []
+    season_events = season_events.sort_values(["start_date", "event_name"])
+
+    for _, ev in season_events.iterrows():
+        ev_id = ev["event_id"]
+        ev_name = ev["event_name"]
+        start_d = ev.get("start_date", "")
+        end_d = ev.get("end_date", "")
+        arr_d = ev.get("arrival_date", "")
+        dep_d = ev.get("departure_date", "")
+        dest_airport = ev.get("destination_airport", "")
+        loc = ev.get("location", "")
+
+        defaults = avail_map.get(ev_id, {"available": False, "airfare_estimate": ""})
+        default_available = defaults["available"]
+        default_airfare = defaults["airfare_estimate"]
+
         st.markdown("---")
-        st.markdown(f"## {ev['event_name']}")
+        st.markdown(f"#### {ev_name} ({loc})")
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.write(f"**Start:** {ev['start_date']}")
-            st.write(f"**End:** {ev['end_date']}")
-        with col2:
-            st.write(f"**Arrival:** {ev.get('arrival_date', '')}")
-            st.write(f"**Departure:** {ev.get('departure_date', '')}")
-        with col3:
-            st.write(f"**Destination Airport:** {ev.get('destination_airport', '')}")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.write(f"**Start date:** {start_d}")
+            st.write(f"**End date:** {end_d}")
+        with c2:
+            st.write(f"**Arrival date:** {arr_d}")
+            st.write(f"**Departure date:** {dep_d}")
+        with c3:
+            st.write(f"**Destination airport:** {dest_airport}")
 
-        # User input (not inside table)
-        avail = st.checkbox(
-            f"Available for {ev['event_name']}",
-            key=f"avail_{ev['event_id']}"
+        available = st.checkbox(
+            f"Available for this event",
+            value=default_available,
+            key=f"avail_{ev_id}",
         )
 
-        airfare = st.text_input(
-            f"Estimated airfare (optional) for {ev['event_name']}",
-            key=f"airfare_{ev['event_id']}"
+        airfare_estimate = st.text_input(
+            "Estimated airfare (optional)",
+            value=str(default_airfare),
+            key=f"airfare_{ev_id}",
         )
 
-        availability_updates.append({
-            "event_id": ev["event_id"],
-            "available": avail,
-            "airfare": airfare,
+        per_event_inputs.append({
+            "event_id": ev_id,
+            "available": available,
+            "airfare_estimate": airfare_estimate.strip(),
         })
 
-    if st.button("Submit Availability"):
-        save_availability(ref_id, availability_updates)
-        st.success("Your availability has been submitted. Thank you!")
+    if st.button("📨 Submit availability"):
+        # Overwrite previous availability for this ref & season (Option A)
+        avail = avail[~((avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season)))]
+
+        now_str = datetime.utcnow().isoformat()
+
+        new_rows = []
+        for item in per_event_inputs:
+            new_rows.append({
+                "avail_id": new_id(),
+                "ref_id": ref_id,
+                "season": str(selected_season),
+                "event_id": item["event_id"],
+                "available": str(bool(item["available"])),
+                "airfare_estimate": item["airfare_estimate"],
+                "timestamp": now_str,
+            })
+
+        if new_rows:
+            avail = pd.concat([avail, pd.DataFrame(new_rows)], ignore_index=True)
+
+        save_availability(avail)
+        st.success("Thank you! Your availability has been recorded. ✅")
+
+    # Show their own previous submissions (not others)
+    st.markdown("### Your saved availability (summary)")
+    avail_me = load_availability()
+    avail_me = avail_me[(avail_me["ref_id"] == ref_id) & (avail_me["season"] == str(selected_season))]
+    if avail_me.empty:
+        st.info("No previous availability saved for this season.")
+    else:
+        events_small = events[["event_id", "season", "start_date", "end_date", "event_name", "location"]]
+        merged = avail_me.merge(events_small, on=["event_id", "season"], how="left")
+        merged = merged.sort_values(["start_date", "event_name"])
+        view_cols = [
+            "start_date",
+            "end_date",
+            "event_name",
+            "location",
+            "available",
+            "airfare_estimate",
+            "timestamp",
+        ]
+        st.dataframe(merged[view_cols], use_container_width=True)
 
 
 # =========================
