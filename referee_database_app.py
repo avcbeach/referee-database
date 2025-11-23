@@ -1389,18 +1389,19 @@ This form is **private** — only you and administrators can view your submissio
     # Filter referees matching category
     refs_filtered = refs[refs["position_type"] == category].copy()
     if refs_filtered.empty:
-    st.error(f"No {category} found in database.")
-    return
+        st.error(f"No {category} found in database.")
+        return
 
-    # Create display name
+    # Show only ID, Name (NAT)
     refs_filtered["display"] = refs_filtered.apply(
-    lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
-    axis=1
-)
+        lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
+        axis=1
+    )
 
-    # 🔥 Sort alphabetically by LAST NAME then FIRST NAME
-    refs_filtered = refs_filtered.sort_values(["last_name", "first_name"], ascending=True)
-
+    # Sort alphabetically by last name, then first name
+    refs_filtered = refs_filtered.sort_values(
+        ["last_name", "first_name"],
+        ascending=[True, True]
     )
 
     # =====================================================
