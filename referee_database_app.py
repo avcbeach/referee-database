@@ -28,11 +28,12 @@ ASSIGN_FILE = os.path.join(DATA_DIR, "assignments.csv")  # nominations/appointme
 
 GENDERS = ["", "Male", "Female"]
 ZONES = ["", "E", "W", "SEA", "O", "C"]
-POSITION_TYPES = ["Control Committee", "Referee"]
+POSITION_TYPES = ["Control Committee", "Referee", ""]
 CC_ROLES = ["", "Technical Delegate", "Referee Coach", "Both"]
 REF_LEVELS = ["", "FIVB", "AVC International", "AVC Candidate", "National"]
 REF_TYPES = ["", "Indoor", "Beach", "Both"]
 UNIFORM_SIZES = ["", "XS", "S", "M", "L", "XL", "2XL", "3XL"]
+
 
 # =========================
 # UTIL & GITHUB HELPERS
@@ -285,7 +286,6 @@ def load_referees():
                 if isinstance(rel, str) and rel:
                     local_path = os.path.join(DATA_DIR, rel)
                     if not os.path.exists(local_path):
-                        # On GitHub, we stored it as "data/<rel>"
                         remote_path = os.path.join(DATA_DIR, rel).replace("\\", "/")
                         content = github_read_file(remote_path)
                         if content is not None:
@@ -306,7 +306,6 @@ def save_referees(df):
 def load_events():
     df = load_csv(EVENTS_FILE, EVENT_COLS)
     if not df.empty:
-        # normalize date columns as strings YYYY-MM-DD
         for col in ["start_date", "end_date", "arrival_date", "departure_date"]:
             df[col] = pd.to_datetime(df[col], errors="coerce").dt.date.astype(str)
     return df
@@ -354,25 +353,27 @@ def _parse_date_str(s, fallback):
 def init_admin_session():
     """Initialize is_admin flag depending on whether an admin password is configured."""
     if "is_admin" not in st.session_state:
+        # Try to read from secrets, else fallback to hardcoded default
+        default_pwd = "avcbeach1234"
         try:
             _ = st.secrets["auth"]["admin_password"]
-            # password configured → default not admin
             st.session_state["is_admin"] = False
         except Exception:
-            # no password configured → open mode (local dev, etc.)
-            st.session_state["is_admin"] = True
+            # no password configured in secrets → still protect with default
+            st.session_state["is_admin"] = False
+            st.session_state["admin_default_pwd"] = default_pwd
 
 
 def admin_login_box():
     """Render admin login / logout controls in sidebar."""
     init_admin_session()
 
+    # Determine password
+    default_pwd = "avcbeach1234"
     try:
         admin_pwd = st.secrets["auth"]["admin_password"]
     except Exception:
-        # No password configured = open admin mode
-        st.sidebar.info("Admin password not configured; admin pages are unlocked (open mode).")
-        return
+        admin_pwd = default_pwd
 
     if st.session_state.get("is_admin", False):
         st.sidebar.success("Admin mode")
@@ -400,7 +401,7 @@ def require_admin():
 
 
 # =========================
-# PAGE 1: ADMIN – REFEREES
+# PAGE: ADMIN – REFEREES
 # =========================
 
 def page_admin_referees():
@@ -478,7 +479,7 @@ def page_admin_referees():
             position_type = st.selectbox(
                 "Position",
                 POSITION_TYPES,
-                index=POSITION_TYPES.index(row["position_type"]) if row is not None and row["position_type"] in POSITION_TYPES else 0,
+                index=POSITION_TYPES.index(row["position_type"]) if row is not None and row["position_type"] in POSITION_TYPES else 2,
             )
         with c5:
             cc_role = st.selectbox(
@@ -509,7 +510,6 @@ def page_admin_referees():
                 "Active",
                 value=(row["active"] == "True") if row is not None else True,
             )
-            # Shirt size
             shirt_default = row["shirt_size"] if row is not None else ""
             if shirt_default not in UNIFORM_SIZES:
                 shirt_default = ""
@@ -519,7 +519,6 @@ def page_admin_referees():
                 index=UNIFORM_SIZES.index(shirt_default),
             )
         with c8:
-            # Shorts size
             shorts_default = row["shorts_size"] if row is not None else ""
             if shorts_default not in UNIFORM_SIZES:
                 shorts_default = ""
@@ -540,8 +539,8 @@ def page_admin_referees():
 
         ensure_dirs()
 
-        # New or update
         if row is None:
+            # New referee
             ref_id = new_id()
             photo_path = ""
             passport_path = ""
@@ -604,6 +603,7 @@ def page_admin_referees():
             st.success("Referee/official added ✅")
 
         else:
+            # Update existing
             idx = refs[refs["ref_id"] == row["ref_id"]].index[0]
             photo_path = refs.loc[idx, "photo_file"]
             passport_path = refs.loc[idx, "passport_file"]
@@ -662,7 +662,7 @@ def page_admin_referees():
             save_referees(refs)
             st.success("Referee/official updated ✅")
 
-    # Delete referee (only when editing an existing person)
+    # Delete referee
     if row is not None:
         st.markdown("---")
         st.subheader("🗑️ Delete this referee")
@@ -680,20 +680,18 @@ def page_admin_referees():
         confirm_delete = st.checkbox("Yes, I want to delete this referee permanently.")
 
         if st.button("🗑️ Delete Referee") and confirm_delete:
-            # Remove from referees list
             refs = refs[refs["ref_id"] != row["ref_id"]]
 
-            # Remove all availability records for this referee
             avail = load_availability()
             if not avail.empty:
                 avail = avail[avail["ref_id"] != row["ref_id"]]
                 save_availability(avail)
 
-            # Remove all assignments for this referee
-            assignments = assignments[assignments["ref_id"] != row["ref_id"]]
-            save_assignments(assignments)
+            assignments = load_assignments()
+            if not assignments.empty:
+                assignments = assignments[assignments["ref_id"] != row["ref_id"]]
+                save_assignments(assignments)
 
-            # Remove local files (we leave GitHub files as archive for safety)
             photo_path = row.get("photo_file", "")
             if isinstance(photo_path, str) and photo_path:
                 full_photo = os.path.join(DATA_DIR, photo_path)
@@ -710,7 +708,7 @@ def page_admin_referees():
             st.success("Referee deleted successfully ✅")
             st.rerun()
 
-    # --- EVENT NOMINATIONS PER REFEREE ---
+    # Event nominations per referee
     if row is not None:
         st.markdown("---")
         st.subheader("📋 Event nominations for this referee")
@@ -721,7 +719,6 @@ def page_admin_referees():
         if events.empty:
             st.info("No events in the system yet. Add events on the 'Admin – Events' page.")
         else:
-            # Existing nominations
             ref_assign = assignments[assignments["ref_id"] == row["ref_id"]].copy()
             if not ref_assign.empty:
                 ev_small = events[[
@@ -736,7 +733,6 @@ def page_admin_referees():
                     "departure_date",
                 ]].copy()
                 merged = ref_assign.merge(ev_small, on="event_id", how="left")
-                # Hide IDs
                 display_cols = [
                     "season",
                     "start_date",
@@ -758,7 +754,6 @@ def page_admin_referees():
 
             st.markdown("#### ➕ Add nomination / appointment")
 
-            # Filter by season for convenience
             seasons = sorted(events["season"].unique())
             season_filter = st.selectbox(
                 "Filter events by season",
@@ -792,7 +787,6 @@ def page_admin_referees():
                     if not position.strip():
                         st.error("Please input position.")
                     else:
-                        # avoid exact duplicate (same ref_id + event_id + position)
                         dup = assignments[
                             (assignments["ref_id"] == row["ref_id"]) &
                             (assignments["event_id"] == ev_id) &
@@ -812,7 +806,6 @@ def page_admin_referees():
                             st.success("Nomination added ✅")
                             st.rerun()
 
-            # Delete nomination
             st.markdown("#### 🗑️ Remove a nomination")
             ref_assign2 = assignments[assignments["ref_id"] == row["ref_id"]].copy()
             if ref_assign2.empty:
@@ -860,9 +853,7 @@ def page_admin_referees():
             use_container_width=True,
         )
 
-    # -------------------
-    # IMPORT FROM EXCEL
-    # -------------------
+    # Import from Excel/CSV
     st.markdown("---")
     st.subheader("📥 Import referees from Excel / CSV")
 
@@ -957,7 +948,7 @@ If an imported row has a FIVB ID that already exists, it will be **skipped**.
                 elif active_raw in ["false", "no", "n", "0"]:
                     active_str = "False"
                 else:
-                    active_str = "True"  # default to active if unclear
+                    active_str = "True"
 
                 new_rows.append({
                     "ref_id": new_id(),
@@ -997,7 +988,7 @@ If an imported row has a FIVB ID that already exists, it will be **skipped**.
 
 
 # =========================
-# PAGE 1b: REFEREE SEARCH (PROFILE ONLY) – PUBLIC
+# PAGE: REFEREE SEARCH (PUBLIC)
 # =========================
 
 def page_referee_search():
@@ -1058,40 +1049,46 @@ def page_referee_search():
         else:
             st.caption("No photo uploaded.")
 
-        st.markdown("#### Passport")
-        pass_rel = prof.get("passport_file", "")
-        if isinstance(pass_rel, str) and pass_rel:
-            pass_path = os.path.join(DATA_DIR, pass_rel)
-            if os.path.exists(pass_path):
-                ext = os.path.splitext(pass_path)[1].lower()
-                try:
-                    with open(pass_path, "rb") as f:
-                        data = f.read()
-                    if ext in [".jpg", ".jpeg", ".png"]:
-                        st.image(pass_path, caption="Passport image", use_container_width=True)
-                    elif ext == ".pdf":
-                        st.download_button(
-                            "Download passport (PDF)",
-                            data=data,
-                            file_name=os.path.basename(pass_path),
-                            mime="application/pdf",
-                        )
-                    else:
-                        st.download_button(
-                            "Download passport file",
-                            data=data,
-                            file_name=os.path.basename(pass_path),
-                        )
-                except Exception:
-                    st.caption("Passport path saved, but file could not be opened.")
-            else:
-                st.caption("Passport path saved, but file not found locally.")
+        # PASSPORT – ADMIN ONLY
+        st.markdown("#### Passport (Admin only)")
+        is_admin = st.session_state.get("is_admin", False)
+
+        if not is_admin:
+            st.caption("Passport is private and only visible to administrators.")
         else:
-            st.caption("No passport uploaded.")
+            pass_rel = prof.get("passport_file", "")
+            if isinstance(pass_rel, str) and pass_rel:
+                pass_path = os.path.join(DATA_DIR, pass_rel)
+                if os.path.exists(pass_path):
+                    ext = os.path.splitext(pass_path)[1].lower()
+                    try:
+                        with open(pass_path, "rb") as f:
+                            data = f.read()
+                        if ext in [".jpg", ".jpeg", ".png"]:
+                            st.image(pass_path, caption="Passport image", use_container_width=True)
+                        elif ext == ".pdf":
+                            st.download_button(
+                                "Download passport (PDF)",
+                                data=data,
+                                file_name=os.path.basename(pass_path),
+                                mime="application/pdf",
+                            )
+                        else:
+                            st.download_button(
+                                "Download passport file",
+                                data=data,
+                                file_name=os.path.basename(pass_path),
+                            )
+                    except Exception:
+                        st.caption("Passport path saved, but file could not be opened.")
+                else:
+                    st.caption("Passport path saved, but file not found locally.")
+            else:
+                st.caption("No passport uploaded.")
 
 
 # =========================
-# PAGE 2: ADMIN – EVENTS
+# PAGE: ADMIN – EVENTS
 # =========================
 
 def page_admin_events():
@@ -1102,7 +1099,6 @@ def page_admin_events():
 
     st.markdown("Use this page to **add, edit, or delete events** for each year/season.")
 
-    # --- ADD EVENT FORM ---
     with st.form("event_form"):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1160,23 +1156,19 @@ def page_admin_events():
             st.success("Event added ✅")
             st.rerun()
 
-    # --- EXISTING EVENTS TABLE ---
     st.markdown("### Existing events")
     if events.empty:
         st.info("No events yet.")
     else:
         events_disp = events.copy()
         events_disp = events_disp.sort_values(["season", "start_date", "event_name"])
-        # Hide event_id from view
         display_cols = [c for c in events_disp.columns if c != "event_id"]
         st.dataframe(events_disp[display_cols], use_container_width=True)
 
-    # --- EDIT / DELETE EVENT ---
     if not events.empty:
         st.markdown("---")
         st.subheader("✏️ Edit / 🗑️ Delete event")
 
-        # Build selection list
         events_sorted = events.sort_values(["season", "start_date", "event_name"])
         labels = []
         id_map = {}
@@ -1196,7 +1188,6 @@ def page_admin_events():
             ev_row = events[events["event_id"] == ev_id].iloc[0]
 
             st.markdown("#### Edit event")
-
             with st.form("edit_event_form"):
                 c1, c2, c3 = st.columns(3)
                 with c1:
@@ -1266,17 +1257,14 @@ def page_admin_events():
             )
             confirm_del = st.checkbox("Yes, delete this event permanently.")
             if st.button("🗑️ Delete event") and confirm_del:
-                # delete from events
                 events = events[events["event_id"] != ev_id]
                 save_events(events)
 
-                # also delete availability rows for this event
                 avail = load_availability()
                 if not avail.empty:
                     avail = avail[avail["event_id"] != ev_id]
                     save_availability(avail)
 
-                # also delete assignments rows for this event
                 assignments = load_assignments()
                 if not assignments.empty:
                     assignments = assignments[assignments["event_id"] != ev_id]
@@ -1287,7 +1275,7 @@ def page_admin_events():
 
 
 # =========================
-# PAGE 3: REFEREE AVAILABILITY FORM – PUBLIC
+# PAGE: REFEREE AVAILABILITY FORM – PUBLIC
 # =========================
 
 def page_availability_form():
@@ -1331,7 +1319,6 @@ For flight options you can check:
         st.info("No events for this season yet.")
         return
 
-    # Existing availability for THIS referee & season (for privacy)
     avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))].copy()
     avail_map = {}
     if not avail_ref.empty:
@@ -1344,7 +1331,6 @@ For flight options you can check:
 
     st.markdown(f"### Availability for Season {selected_season}")
 
-    # Build controls per event
     per_event_inputs = []
     season_events = season_events.sort_values(["start_date", "event_name"])
 
@@ -1394,7 +1380,6 @@ For flight options you can check:
         })
 
     if st.button("📨 Submit availability"):
-        # Overwrite previous availability for this ref & season (Option A)
         avail = avail[~((avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season)))]
 
         now_str = datetime.utcnow().isoformat()
@@ -1417,7 +1402,6 @@ For flight options you can check:
         save_availability(avail)
         st.success("Thank you! Your availability has been recorded. ✅")
 
-    # Show their own previous submissions (not others)
     st.markdown("### Your saved availability (summary)")
     avail_me = load_availability()
     avail_me = avail_me[(avail_me["ref_id"] == ref_id) & (avail_me["season"] == str(selected_season))]
@@ -1440,7 +1424,7 @@ For flight options you can check:
 
 
 # =========================
-# PAGE 4: ADMIN – VIEW AVAILABILITY
+# PAGE: ADMIN – VIEW AVAILABILITY
 # =========================
 
 def page_admin_availability():
@@ -1456,7 +1440,6 @@ def page_admin_availability():
         st.info("No availability or nominations yet.")
         return
 
-    # Determine seasons from both availability and events
     seasons_avail = avail["season"].unique().tolist() if not avail.empty else []
     seasons_events = events["season"].unique().tolist() if not events.empty else []
     season_list = sorted(set(seasons_avail + seasons_events))
@@ -1466,7 +1449,6 @@ def page_admin_availability():
 
     selected_season = st.selectbox("Season", season_list)
 
-    # Filter by season
     avail_season = avail[avail["season"] == str(selected_season)].copy()
     events_season = events[events["season"] == str(selected_season)].copy()
 
@@ -1474,7 +1456,6 @@ def page_admin_availability():
         st.info("No data for this season.")
         return
 
-    # Prepare base from availability
     refs_small = refs[["ref_id", "first_name", "last_name", "nationality", "zone"]].copy()
     events_small = events_season[["event_id", "season", "event_name", "start_date", "end_date", "location"]].copy()
 
@@ -1499,7 +1480,6 @@ def page_admin_availability():
         merged = merged.merge(events_small, on=["event_id", "season"], how="left")
         base = merged
 
-    # Build nomination set
     assign_season = assignments.copy()
     if not assign_season.empty:
         assign_season = assign_season.merge(
@@ -1511,7 +1491,6 @@ def page_admin_availability():
     else:
         assign_pairs = set()
 
-    # Include nominations where no availability exists
     if not assignments.empty and not events_season.empty:
         for _, a in assign_season.iterrows():
             key = (a["ref_id"], a["event_id"])
@@ -1548,7 +1527,6 @@ def page_admin_availability():
 
     base["ref_name"] = base["first_name"].fillna("") + " " + base["last_name"].fillna("")
 
-    # Compute status: Nominated > Available > Not available
     def compute_status(r):
         key = (r["ref_id"], r["event_id"])
         if key in assign_pairs:
@@ -1560,7 +1538,6 @@ def page_admin_availability():
         return "Unknown"
 
     base["status"] = base.apply(compute_status, axis=1)
-
     base = base.sort_values(["start_date", "event_name", "ref_name"])
 
     view_cols = [
@@ -1587,17 +1564,15 @@ def page_admin_availability():
 def main():
     st.sidebar.title("🏖️ Beach Referee DB")
 
-    # Admin login box in sidebar
     admin_login_box()
     init_admin_session()
     is_admin = st.session_state.get("is_admin", False)
 
-    # Sidebar navigation
     if is_admin:
         page = st.sidebar.radio(
             "Go to",
             [
-                "Referee Availability Form",  # keep on top even for you
+                "Referee Availability Form",
                 "Referee Search",
                 "Admin – Referees",
                 "Admin – Events",
@@ -1605,7 +1580,6 @@ def main():
             ],
         )
     else:
-        # PUBLIC menu only
         page = st.sidebar.radio(
             "Go to",
             [
@@ -1614,7 +1588,6 @@ def main():
             ],
         )
 
-    # Route
     if page == "Admin – Referees":
         page_admin_referees()
     elif page == "Admin – Events":
