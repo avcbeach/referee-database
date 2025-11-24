@@ -777,7 +777,7 @@ def page_referee_search():
         return
 
     refs["display"] = refs.apply(lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})", axis=1)
-    refs = refs.sort_values(["last_name", "first_name"])
+    refs = refs.sort_values(["first_name", "last_name"])
 
     st.markdown("### 2️⃣ Select referee")
 
