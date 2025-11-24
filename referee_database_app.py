@@ -765,51 +765,50 @@ def page_referee_search():
         st.info("No referees in database yet.")
         return
 
-    st.markdown("### 1️⃣ Select category")
-    category = st.selectbox(
-        "Choose",
-        ["Referee", "Control Committee"]
-    )
-
     # ====================================
-    # 🔍 FILTER SECTION
+    # 1️⃣ SELECT CATEGORY (UNIQUE)
     # ====================================
     st.markdown("### 1️⃣ Select category")
     category = st.selectbox(
-        "Choose",
-        ["Referee", "Control Committee"]
+        "Choose category",
+        ["Referee", "Control Committee"],
+        key="category_select"
     )
 
-    # Filter category first
+    # Filter category
     refs = refs[refs["position_type"] == category].copy()
     if refs.empty:
         st.info("No referees in this category.")
         return
 
-    # Display name for searching & table
+    # Display field
     refs["display"] = refs.apply(
         lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
         axis=1
     )
 
-    # ---- Filter controls ----
+    # ====================================
+    # 2️⃣ FILTER SECTION
+    # ====================================
     st.markdown("### 2️⃣ Filters")
 
     colA, colB, colC = st.columns(3)
 
     with colA:
-        search_text = st.text_input("Search name", "").lower().strip()
+        search_text = st.text_input("Search name", "", key="filter_search").lower().strip()
 
     with colB:
         nationality_filter = st.selectbox(
             "Nationality",
-            ["All"] + sorted(refs["nationality"].unique())
+            ["All"] + sorted(refs["nationality"].unique()),
+            key="filter_nationality"
         )
 
     with colC:
         zone_filter = st.selectbox(
             "Zone",
-            ["All"] + sorted([z for z in refs["zone"].unique() if z])
+            ["All"] + sorted([z for z in refs["zone"].unique() if z]),
+            key="filter_zone"
         )
 
     colD, colE = st.columns(2)
@@ -817,16 +816,18 @@ def page_referee_search():
     with colD:
         gender_filter = st.selectbox(
             "Gender",
-            ["All"] + sorted([g for g in refs["gender"].unique() if g])
+            ["All"] + sorted([g for g in refs["gender"].unique() if g]),
+            key="filter_gender"
         )
 
     with colE:
         active_filter = st.selectbox(
             "Active",
-            ["All", "Active", "Inactive"]
+            ["All", "Active", "Inactive"],
+            key="filter_active"
         )
 
-    # ---- Apply filters ----
+    # Apply filters
     filtered = refs.copy()
 
     if search_text:
@@ -848,11 +849,11 @@ def page_referee_search():
     elif active_filter == "Inactive":
         filtered = filtered[filtered["active"] == "False"]
 
-    # Sort by first name then last name
+    # Sort by first name
     filtered = filtered.sort_values(["first_name", "last_name"])
 
     # ====================================
-    # 📋 TABLE OF FILTERED REFEREES
+    # 3️⃣ FILTERED TABLE
     # ====================================
     st.markdown("### 3️⃣ Filtered Results")
 
@@ -860,13 +861,11 @@ def page_referee_search():
         st.warning("No referees match your filters.")
         return
 
-    # Create clickable labels
     filtered["Select"] = filtered.apply(
         lambda r: f"➡️ {r['first_name']} {r['last_name']} ({r['nationality']})",
         axis=1
     )
 
-    # Show table
     st.dataframe(
         filtered[[
             "Select",
@@ -888,30 +887,27 @@ def page_referee_search():
     )
 
     # ====================================
-    # 4️⃣ SELECT REFEREE PROFILE (click)
+    # 4️⃣ SELECT REFEREE PROFILE
     # ====================================
     st.markdown("### 4️⃣ Select referee")
 
     select_options = list(filtered["Select"])
-    sel_label = st.selectbox("Choose name", select_options)
+    sel_label = st.selectbox(
+        "Choose name",
+        select_options,
+        key="profile_select"
+    )
 
     sel_id = filtered[filtered["Select"] == sel_label].iloc[0]["ref_id"]
     prof = refs[refs["ref_id"] == sel_id].iloc[0]
 
-
-    st.markdown("### 2️⃣ Select referee")
-
-    options = list(refs["display"])
-    sel_label = st.selectbox("Name", options)
-    sel_id = refs[refs["display"] == sel_label].iloc[0]["ref_id"]
-
-    prof = refs[refs["ref_id"] == sel_id].iloc[0]
-
-
+    # ====================================
+    # 5️⃣ PROFILE DISPLAY
+    # ====================================
     colL, colR = st.columns([2, 1])
 
     with colL:
-        st.markdown(f"### {prof['first_name']} {prof['last_name']}")
+        st.markdown(f"## {prof['first_name']} {prof['last_name']}")
         st.write(f"**Gender:** {prof['gender']}")
         st.write(f"**Nationality:** {prof['nationality']}")
         st.write(f"**Zone:** {prof['zone']}")
@@ -943,42 +939,29 @@ def page_referee_search():
         else:
             st.caption("No photo uploaded.")
 
-        # PASSPORT – ADMIN ONLY
         st.markdown("#### Passport (Admin only)")
-        is_admin = st.session_state.get("is_admin", False)
-
-        if not is_admin:
-            st.caption("Passport is private and only visible to administrators.")
-        else:
+        if st.session_state.get("is_admin", False):
             pass_rel = prof.get("passport_file", "")
             if isinstance(pass_rel, str) and pass_rel:
                 pass_path = os.path.join(DATA_DIR, pass_rel)
                 if os.path.exists(pass_path):
                     ext = os.path.splitext(pass_path)[1].lower()
-                    try:
-                        with open(pass_path, "rb") as f:
-                            data = f.read()
-                        if ext in [".jpg", ".jpeg", ".png"]:
-                            st.image(pass_path, caption="Passport image", use_container_width=True)
-                        elif ext == ".pdf":
-                            st.download_button(
-                                "Download passport (PDF)",
-                                data=data,
-                                file_name=os.path.basename(pass_path),
-                                mime="application/pdf",
-                            )
-                        else:
-                            st.download_button(
-                                "Download passport file",
-                                data=data,
-                                file_name=os.path.basename(pass_path),
-                            )
-                    except Exception:
-                        st.caption("Passport path saved, but file could not be opened.")
+                    with open(pass_path, "rb") as f:
+                        data = f.read()
+                    if ext in [".jpg", ".jpeg", ".png"]:
+                        st.image(pass_path, caption="Passport", use_container_width=True)
+                    else:
+                        st.download_button(
+                            "Download Passport",
+                            data=data,
+                            file_name=os.path.basename(pass_path),
+                            mime="application/pdf",
+                        )
                 else:
-                    st.caption("Passport path saved, but file not found locally.")
-            else:
-                st.caption("No passport uploaded.")
+                    st.caption("Passport file not found.")
+        else:
+            st.caption("Passport hidden for non-admins.")
+
     # ====================================
     # ✏️ EDIT REFEREE INFORMATION (INLINE)
     # ====================================
