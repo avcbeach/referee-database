@@ -416,10 +416,6 @@ def page_admin_referees():
     require_admin()
     st.title("👤 Admin – Referees & Officials")
 
-    # 🔥 ENSURE select_ref_key ALWAYS EXISTS
-    if "select_ref_key" not in st.session_state:
-        st.session_state.select_ref_key = 0
-
     # Load data
     refs = load_referees()
     events = load_events()
@@ -450,22 +446,6 @@ def page_admin_referees():
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
         st.rerun()
-
-    # 🔥 FULL RESET OF ALL FORM FIELDS
-    reset_keys = [
-        "first_name", "last_name", "gender", "nationality", "zone",
-        "birthdate", "fivb_id", "email", "phone", "origin_airport",
-        "position_type", "cc_role", "ref_level", "course_year",
-        "shirt_size", "shorts_size", "type", "active",
-        "photo_file", "passport_file"
-    ]
-
-    for k in reset_keys:
-        if k in st.session_state:
-            del st.session_state[k]
-
-    # force selectbox reset
-    st.session_state.select_ref_key += 1
 
     # ------------------------------
     # CATEGORY SELECTBOX
@@ -712,15 +692,22 @@ def page_admin_referees():
             refs = pd.concat([refs, new_row], ignore_index=True)
             save_referees(refs)
             st.success("Referee/official added   ")
-            
-            # 🔥 SUPER HARD RESET (the nuclear solution)
-            keep = ["is_admin"]
+    # HARD RESET AFTER SAVE
+    keep = ["is_admin"]
+    for key in list(st.session_state.keys()):
+        if key not in keep:
+            del st.session_state[key]
+    st.rerun()
 
-            for key in list(st.session_state.keys()):
-                if key not in keep:
-                    del st.session_state[key]
+        else:
+            # UPDATE — FIXED (safe index lookup)
+            match = refs[refs["ref_id"] == row["ref_id"]]
 
-            st.rerun()
+            if match.empty:
+                st.error("Error: Could not find referee to update.")
+                return
+
+            idx = match.index[0]
 
             photo_path = refs.loc[idx, "photo_file"]
             passport_path = refs.loc[idx, "passport_file"]
@@ -765,27 +752,11 @@ def page_admin_referees():
             save_referees(refs)
             st.success("Referee/official updated")
 
-        # RESET FORM AFTER SAVE (FULL CLEAR)
+        # RESET FORM AFTER SAVE
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
-
-        if "select_ref_key" not in st.session_state:
-            st.session_state.select_ref_key = 0
-
-        reset_keys = [
-            "first_name", "last_name", "gender", "nationality", "zone",
-            "birthdate", "fivb_id", "email", "phone", "origin_airport",
-            "position_type", "cc_role", "ref_level", "course_year",
-            "shirt_size", "shorts_size", "type", "active",
-            "photo_file", "passport_file"
-        ]
-
-        for k in reset_keys:
-            if k in st.session_state:
-                del st.session_state[k]
-
-        st.session_state.select_ref_key += 1
         st.rerun()
+
 
     # ======================
     # DELETE SECTION
