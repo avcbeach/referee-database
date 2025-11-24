@@ -441,7 +441,7 @@ def page_admin_referees():
         st.rerun()
 
     # ------------------------------
-    # CATEGORY SELECTBOX (NEW)
+    # CATEGORY SELECTBOX
     # ------------------------------
     st.markdown("### Filter by Category")
     category_choice = st.selectbox(
@@ -452,14 +452,11 @@ def page_admin_referees():
 
     if not refs.empty:
 
-        # Apply category filter
         if category_choice != "All":
             refs = refs[refs["position_type"] == category_choice]
 
-        # Build display
         refs["display"] = refs.apply(referee_display_name, axis=1)
 
-        # Sort alphabetically by FIRST name
         refs = refs.sort_values(by=["first_name", "last_name"])
 
         mapping = {row["display"]: row["ref_id"] for _, row in refs.iterrows()}
@@ -475,7 +472,6 @@ def page_admin_referees():
     if "select_ref_key" not in st.session_state:
         st.session_state.select_ref_key = 0
 
-    # If NEW → force dropdown reset
     if st.session_state.new_mode:
         st.session_state.select_ref_key += 1
 
@@ -530,46 +526,41 @@ def page_admin_referees():
     # ===============================
     st.subheader("Referee / Official Information")
 
-    # Create dynamic key prefix
-    form_prefix = f"ref_{st.session_state.select_ref_key}_"
-
     with st.form("ref_form"):
         # Column sets
         c1, c2, c3 = st.columns(3)
         with c1:
-            first_name = st.text_input(
-                "First name",
-                value=row["first_name"],
-                key=form_prefix + "first_name"
-            )
-            last_name = st.text_input(
-                "Last name",
-                value=row["last_name"],
-                key=form_prefix + "last_name"
-            )
+            first_name = st.text_input("First name", value=row["first_name"])
+            last_name = st.text_input("Last name", value=row["last_name"])
             gender = st.selectbox(
                 "Gender", GENDERS,
-                index=GENDERS.index(row["gender"]) if row["gender"] in GENDERS else 0,
-                key=form_prefix + "gender"
+                index=GENDERS.index(row["gender"]) if row["gender"] in GENDERS else 0
             )
 
         with c2:
+            NOC_LIST = sorted([
+               "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
+               "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR","KOR","KUW","LAO","LIB",
+               "MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU","NMI","NRU","NZL","OMA","PAK","PAU",
+               "PHI","PLE","PNG","PRK","QAT","SAM","SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM",
+               "TLS","TPE","TUV","UAE","UZB","VAN","VIE","YEM"
+            ])
+
             nationality = st.selectbox(
                "Nationality", NOC_LIST,
-               index=NOC_LIST.index(row["nationality"]) if row["nationality"] in NOC_LIST else 0,
-               key=form_prefix + "nationality"
+               index=NOC_LIST.index(row["nationality"]) if row["nationality"] in NOC_LIST else 0
             )
 
             zone = st.selectbox(
                 "Zone", ZONES,
-                index=ZONES.index(row["zone"]) if row["zone"] in ZONES else 0,
-                key=form_prefix + "zone"
+                index=ZONES.index(row["zone"]) if row["zone"] in ZONES else 0
             )
 
             try:
                 bd_default = (
                     datetime.strptime(row["birthdate"], "%Y-%m-%d").date()
-                    if row["birthdate"] else date(1990, 1, 1)
+                    if row["birthdate"]
+                    else date(1990, 1, 1)
                 )
             except:
                 bd_default = date(1990, 1, 1)
@@ -578,108 +569,63 @@ def page_admin_referees():
                 "Birthdate",
                 value=bd_default,
                 min_value=date(1900, 1, 1),
-                max_value=date(2100, 12, 31),
-                key=form_prefix + "birthdate"
+                max_value=date(2100, 12, 31)
             ).isoformat()
 
         with c3:
-            fivb_id = st.text_input(
-                "FIVB ID",
-                value=row["fivb_id"],
-                key=form_prefix + "fivb_id"
-            )
-            email = st.text_input(
-                "Email",
-                value=row["email"],
-                key=form_prefix + "email"
-            )
-            phone = st.text_input(
-                "Phone",
-                value=row["phone"],
-                key=form_prefix + "phone"
-            )
+            fivb_id = st.text_input("FIVB ID", value=row["fivb_id"])
+            email = st.text_input("Email", value=row["email"])
+            phone = st.text_input("Phone", value=row["phone"])
 
         c4, c5, c6 = st.columns(3)
         with c4:
             origin_airport = st.text_input(
-                "Origin airport (e.g. BKK, PEK)",
-                value=row["origin_airport"],
-                key=form_prefix + "origin_airport"
+                "Origin airport (e.g. BKK, PEK)", value=row["origin_airport"]
             )
             position_type = st.selectbox(
                 "Position", POSITION_TYPES,
-                index=POSITION_TYPES.index(row["position_type"]) if row["position_type"] in POSITION_TYPES else 2,
-                key=form_prefix + "position_type"
+                index=POSITION_TYPES.index(row["position_type"]) if row["position_type"] in POSITION_TYPES else 2
             )
 
         with c5:
             cc_role = st.selectbox(
                 "If Control Committee – Role", CC_ROLES,
-                index=CC_ROLES.index(row["cc_role"]) if row["cc_role"] in CC_ROLES else 0,
-                key=form_prefix + "cc_role"
+                index=CC_ROLES.index(row["cc_role"]) if row["cc_role"] in CC_ROLES else 0
             )
             ref_level = st.selectbox(
                 "If Referee – Level", REF_LEVELS,
-                index=REF_LEVELS.index(row["ref_level"]) if row["ref_level"] in REF_LEVELS else 0,
-                key=form_prefix + "ref_level"
+                index=REF_LEVELS.index(row["ref_level"]) if row["ref_level"] in REF_LEVELS else 0
             )
 
         with c6:
-            course_year = st.text_input(
-                "Course year (for referees)",
-                value=row["course_year"],
-                key=form_prefix + "course_year"
-            )
+            course_year = st.text_input("Course year (for referees)", value=row["course_year"])
             ref_type = st.selectbox(
-                "Type",
-                REF_TYPES,
-                index=REF_TYPES.index(row["type"]) if row["type"] in REF_TYPES else 0,
-                key=form_prefix + "type"
+                "Type", REF_TYPES,
+                index=REF_TYPES.index(row["type"]) if row["type"] in REF_TYPES else 0
             )
 
         c7, c8 = st.columns(2)
         with c7:
-            active = st.checkbox(
-                "Active",
-                value=(row["active"] == "True"),
-                key=form_prefix + "active"
-            )
+            active = st.checkbox("Active", value=(row["active"] == "True"))
 
             shirt_default = row["shirt_size"]
             if shirt_default not in UNIFORM_SIZES:
                 shirt_default = ""
-            shirt_size = st.selectbox(
-                "Shirt size", UNIFORM_SIZES,
-                index=UNIFORM_SIZES.index(shirt_default),
-                key=form_prefix + "shirt_size"
-            )
+            shirt_size = st.selectbox("Shirt size", UNIFORM_SIZES, index=UNIFORM_SIZES.index(shirt_default))
 
         with c8:
             shorts_default = row["shorts_size"]
             if shorts_default not in UNIFORM_SIZES:
                 shorts_default = ""
-            shorts_size = st.selectbox(
-                "Shorts size", UNIFORM_SIZES,
-                index=UNIFORM_SIZES.index(shorts_default),
-                key=form_prefix + "shorts_size"
-            )
+            shorts_size = st.selectbox("Shorts size", UNIFORM_SIZES, index=UNIFORM_SIZES.index(shorts_default))
 
-            photo_file = st.file_uploader(
-                "Photo ID (optional)",
-                type=["jpg","jpeg","png"],
-                key=form_prefix + "photo"
-            )
-            passport_file = st.file_uploader(
-                "Passport (optional)",
-                type=["pdf","jpg","jpeg","png"],
-                key=form_prefix + "passport"
-            )
+            photo_file = st.file_uploader("Photo ID (optional)", type=["jpg", "jpeg", "png"])
+            passport_file = st.file_uploader("Passport (optional)", type=["pdf", "jpg", "jpeg", "png"])
 
         submitted = st.form_submit_button("💾 Save")
 
-
     # ======================
-    # SAVE LOGIC
+    # SAVE LOGIC (FIXED)
     # ======================
     if submitted:
         if not first_name.strip() and not last_name.strip():
@@ -688,13 +634,12 @@ def page_admin_referees():
 
         ensure_dirs()
 
-        # NEW
-        if row is None:
+        # NEW — FIX APPLIED HERE
+        if st.session_state.new_mode:
             ref_id = new_id()
             photo_path = ""
             passport_path = ""
 
-            # Save files
             if photo_file is not None:
                 ext = os.path.splitext(photo_file.name)[1]
                 fname = f"{ref_id}{ext}"
@@ -737,16 +682,15 @@ def page_admin_referees():
 
             refs = pd.concat([refs, new_row], ignore_index=True)
             save_referees(refs)
-            st.success("Referee/official added ✅")
+            st.success("Referee/official added   ")
 
         else:
-            # UPDATE
+            # UPDATE (unchanged)
             idx = refs[refs["ref_id"] == row["ref_id"]].index[0]
 
             photo_path = refs.loc[idx, "photo_file"]
             passport_path = refs.loc[idx, "passport_file"]
 
-            # update files
             if photo_file is not None:
                 ext = os.path.splitext(photo_file.name)[1]
                 fname = f"{row['ref_id']}{ext}"
@@ -763,7 +707,6 @@ def page_admin_referees():
                 with open(full_pass_path, "wb") as f:
                     f.write(passport_file.getbuffer())
 
-            # write fields
             refs.loc[idx, "first_name"] = first_name.strip()
             refs.loc[idx, "last_name"] = last_name.strip()
             refs.loc[idx, "gender"] = gender
@@ -786,12 +729,13 @@ def page_admin_referees():
             refs.loc[idx, "type"] = ref_type
 
             save_referees(refs)
-            st.success("Referee/official updated ✅")
+            st.success("Referee/official updated")
 
         # RESET FORM AFTER SAVE
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
         st.rerun()
+
 
     # ======================
     # DELETE SECTION
