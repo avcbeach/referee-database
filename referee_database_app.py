@@ -488,9 +488,12 @@ def page_admin_referees():
         key=f"ref_select_{st.session_state.select_ref_key}"
     )
 
-    if sel in mapping:
+    if sel in mapping and sel != "":
         st.session_state.new_mode = False
         st.session_state.selected_ref = mapping[sel]
+    else:
+        st.session_state.new_mode = True
+        st.session_state.selected_ref = None
 
     # ------------------------------
     # DETERMINE SELECTED ROW
