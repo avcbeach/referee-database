@@ -445,6 +445,7 @@ def page_admin_referees():
     if st.button("➕ New Referee / Official"):
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
+        st.session_state.ref_form_key += 1     # 💥 FORCE NEW EMPTY FORM
         st.rerun()
 
     # ------------------------------
@@ -538,7 +539,7 @@ def page_admin_referees():
     # ===============================
     st.subheader("Referee / Official Information")
 
-    with st.form("ref_form"):
+    with st.form(f"ref_form_{st.session_state.ref_form_key}"):
         # Column sets
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -696,11 +697,14 @@ def page_admin_referees():
             save_referees(refs)
             st.success("Referee/official added")
 
-            # HARD RESET AFTER SAVE
-            keep = ["is_admin"]
-            for key in list(st.session_state.keys()):
-                if key not in keep:
-                    del st.session_state[key]
+            # Force fresh empty form on next load
+            if "ref_form_key" not in st.session_state:
+                st.session_state.ref_form_key = 0
+            st.session_state.ref_form_key += 1
+
+            # Reset selection
+            st.session_state.new_mode = True
+            st.session_state.selected_ref = None
 
             st.rerun()
 
