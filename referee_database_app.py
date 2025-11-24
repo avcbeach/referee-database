@@ -722,16 +722,6 @@ def page_admin_referees():
 
             st.rerun()
 
-        else:
-            # UPDATE — FIXED (safe index lookup)
-            match = refs[refs["ref_id"] == row["ref_id"]]
-
-            if match.empty:
-                st.error("Error: Could not find referee to update.")
-                return
-
-            idx = match.index[0]
-
             photo_path = refs.loc[idx, "photo_file"]
             passport_path = refs.loc[idx, "passport_file"]
 
