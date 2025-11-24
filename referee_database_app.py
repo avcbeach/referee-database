@@ -445,12 +445,11 @@ def page_admin_referees():
             )
         with c2:
             NOC_LIST = [
-                "", "CHN","KOR","PRK","JPN","HKG","MAC","MGL","TPE",
-                "AFG","BAN","BHU","IND","IRI","KAZ","KGZ","MDV","NEP","PAK","SRI","TJK","TKM","UZB",
-                "BRN","IRQ","JOR","KUW","LIB","OMA","PLE","QAT","KSA","SYR","UAE","YEM",
-                "AUS","ASA","COK","FIJ","GUM","KIR","MSH","FSM","NRU","NZL","NIU","PAU","PNG",
-                "SAM","SOL","TGA","TUV","VAN","NMI","PLY",
-                "BRU","CAM","INA","LAO","MAS","MYA","PHI","SIN","THA","VIE","TLS"
+               "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
+               "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR","KOR","KUW","LAO","LIB",
+               "MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU","NMI","NRU","NZL","OMA","PAK","PAU",
+               "PHI","PLE","PNG","PRK","QAT","SAM","SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM",
+               "TLS","TPE","TUV","UAE","UZB","VAN","VIE","YEM"
             ]
 
             nationality = st.selectbox(
