@@ -980,14 +980,15 @@ def page_referee_search():
 
     avail = load_availability()
 
-    # Filter only this referee's data
+    # Filter only this referee
     my_avail = avail[avail["ref_id"] == prof["ref_id"]].copy()
 
     if my_avail.empty:
         st.caption("No availability submissions from this referee yet.")
     else:
-        # Load events for readable names
+        # Load event names
         events = load_events()
+
         if not events.empty:
             ev_small = events[[
                 "event_id",
@@ -998,30 +999,49 @@ def page_referee_search():
                 "location"
             ]]
 
+            # merge to show readable details
             my_avail = my_avail.merge(ev_small, on="event_id", how="left")
 
-        # Name mapping
+        # rename columns to readable names
         rename_map = {
             "season": "Season",
             "event_name": "Event",
             "location": "Location",
             "start_date": "Start",
             "end_date": "End",
-            "availability": "Availability",
-            "comments": "Comments",
+            "available": "Available",
+            "airfare_estimate": "Airfare Estimate",
+            "timestamp": "Submitted At"
         }
-        my_avail = my_avail.rename(columns=rename_map)
 
-        show_cols = ["Season", "Event", "Location", "Start", "End", "Availability", "Comments"]
+        for old, new in rename_map.items():
+            if old in my_avail.columns:
+                my_avail = my_avail.rename(columns={old: new})
 
-        # Sort by season + start date
-        if "Season" in my_avail.columns and "Start" in my_avail.columns:
-            my_avail = my_avail.sort_values(["Season", "Start"])
+        # columns we want (only if exist)
+        preferred_cols = [
+            "Season",
+            "Event",
+            "Location",
+            "Start",
+            "End",
+            "Available",
+            "Airfare Estimate",
+            "Submitted At"
+        ]
+
+        display_cols = [c for c in preferred_cols if c in my_avail.columns]
+
+        # sorting: season + start date if available
+        sort_cols = [c for c in ["Season", "Start"] if c in my_avail.columns]
+        if sort_cols:
+            my_avail = my_avail.sort_values(sort_cols)
 
         st.dataframe(
-            my_avail[show_cols],
+            my_avail[display_cols],
             use_container_width=True
         )
+
 
     # =========================
     # ADMIN-ONLY EVENT NOMINATIONS FOR THIS REFEREE
