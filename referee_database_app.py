@@ -474,10 +474,8 @@ def page_admin_referees():
     # SELECTION DROPDOWN (with reset)
     # ------------------------------
     if "select_ref_key" not in st.session_state:
-        st.session_state.select_ref_key = 0
+        st.session_state.select_ref_key = None
 
-    if st.session_state.new_mode:
-        st.session_state.select_ref_key += 1
 
     sel = st.selectbox(
         "Select referee/official",
