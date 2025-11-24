@@ -691,13 +691,15 @@ def page_admin_referees():
 
             refs = pd.concat([refs, new_row], ignore_index=True)
             save_referees(refs)
-            st.success("Referee/official added   ")
-    # HARD RESET AFTER SAVE
-    keep = ["is_admin"]
-    for key in list(st.session_state.keys()):
-        if key not in keep:
-            del st.session_state[key]
-    st.rerun()
+            st.success("Referee/official added")
+
+            # HARD RESET AFTER SAVE
+            keep = ["is_admin"]
+            for key in list(st.session_state.keys()):
+                if key not in keep:
+                    del st.session_state[key]
+
+            st.rerun()
 
         else:
             # UPDATE — FIXED (safe index lookup)
@@ -756,6 +758,7 @@ def page_admin_referees():
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
         st.rerun()
+
 
 
     # ======================
