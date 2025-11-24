@@ -771,13 +771,133 @@ def page_referee_search():
         ["Referee", "Control Committee"]
     )
 
+    # ====================================
+    # 🔍 FILTER SECTION
+    # ====================================
+    st.markdown("### 1️⃣ Select category")
+    category = st.selectbox(
+        "Choose",
+        ["Referee", "Control Committee"]
+    )
+
+    # Filter category first
     refs = refs[refs["position_type"] == category].copy()
     if refs.empty:
         st.info("No referees in this category.")
         return
 
-    refs["display"] = refs.apply(lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})", axis=1)
-    refs = refs.sort_values(["first_name", "last_name"])
+    # Display name for searching & table
+    refs["display"] = refs.apply(
+        lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
+        axis=1
+    )
+
+    # ---- Filter controls ----
+    st.markdown("### 2️⃣ Filters")
+
+    colA, colB, colC = st.columns(3)
+
+    with colA:
+        search_text = st.text_input("Search name", "").lower().strip()
+
+    with colB:
+        nationality_filter = st.selectbox(
+            "Nationality",
+            ["All"] + sorted(refs["nationality"].unique())
+        )
+
+    with colC:
+        zone_filter = st.selectbox(
+            "Zone",
+            ["All"] + sorted([z for z in refs["zone"].unique() if z])
+        )
+
+    colD, colE = st.columns(2)
+
+    with colD:
+        gender_filter = st.selectbox(
+            "Gender",
+            ["All"] + sorted([g for g in refs["gender"].unique() if g])
+        )
+
+    with colE:
+        active_filter = st.selectbox(
+            "Active",
+            ["All", "Active", "Inactive"]
+        )
+
+    # ---- Apply filters ----
+    filtered = refs.copy()
+
+    if search_text:
+        filtered = filtered[
+            filtered["display"].str.lower().str.contains(search_text)
+        ]
+
+    if nationality_filter != "All":
+        filtered = filtered[filtered["nationality"] == nationality_filter]
+
+    if zone_filter != "All":
+        filtered = filtered[filtered["zone"] == zone_filter]
+
+    if gender_filter != "All":
+        filtered = filtered[filtered["gender"] == gender_filter]
+
+    if active_filter == "Active":
+        filtered = filtered[filtered["active"] == "True"]
+    elif active_filter == "Inactive":
+        filtered = filtered[filtered["active"] == "False"]
+
+    # Sort by first name then last name
+    filtered = filtered.sort_values(["first_name", "last_name"])
+
+    # ====================================
+    # 📋 TABLE OF FILTERED REFEREES
+    # ====================================
+    st.markdown("### 3️⃣ Filtered Results")
+
+    if filtered.empty:
+        st.warning("No referees match your filters.")
+        return
+
+    # Create clickable labels
+    filtered["Select"] = filtered.apply(
+        lambda r: f"➡️ {r['first_name']} {r['last_name']} ({r['nationality']})",
+        axis=1
+    )
+
+    # Show table
+    st.dataframe(
+        filtered[[
+            "Select",
+            "first_name",
+            "last_name",
+            "nationality",
+            "zone",
+            "gender",
+            "active"
+        ]].rename(columns={
+            "first_name": "First Name",
+            "last_name": "Last Name",
+            "nationality": "NOC",
+            "zone": "Zone",
+            "gender": "Gender",
+            "active": "Active"
+        }),
+        use_container_width=True
+    )
+
+    # ====================================
+    # 4️⃣ SELECT REFEREE PROFILE (click)
+    # ====================================
+    st.markdown("### 4️⃣ Select referee")
+
+    select_options = list(filtered["Select"])
+    sel_label = st.selectbox("Choose name", select_options)
+
+    sel_id = filtered[filtered["Select"] == sel_label].iloc[0]["ref_id"]
+    prof = refs[refs["ref_id"] == sel_id].iloc[0]
+
 
     st.markdown("### 2️⃣ Select referee")
 
