@@ -766,22 +766,22 @@ def page_referee_search():
         return
 
     # ====================================
-    # 1️⃣ SELECT CATEGORY (UNIQUE)
+    # 1️⃣ SELECT CATEGORY
     # ====================================
     st.markdown("### 1️⃣ Select category")
     category = st.selectbox(
-        "Choose category",
+        "Category",
         ["Referee", "Control Committee"],
-        key="category_select"
+        key="search_category"
     )
 
-    # Filter category
+    # Filter by category
     refs = refs[refs["position_type"] == category].copy()
     if refs.empty:
         st.info("No referees in this category.")
         return
 
-    # Display field
+    # Display name
     refs["display"] = refs.apply(
         lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
         axis=1
@@ -822,12 +822,14 @@ def page_referee_search():
 
     with colE:
         active_filter = st.selectbox(
-            "Active",
+            "Active Status",
             ["All", "Active", "Inactive"],
             key="filter_active"
         )
 
-    # Apply filters
+    # ====================================
+    # APPLY FILTERS
+    # ====================================
     filtered = refs.copy()
 
     if search_text:
@@ -849,26 +851,19 @@ def page_referee_search():
     elif active_filter == "Inactive":
         filtered = filtered[filtered["active"] == "False"]
 
-    # Sort by first name
     filtered = filtered.sort_values(["first_name", "last_name"])
 
     # ====================================
     # 3️⃣ FILTERED TABLE
     # ====================================
-    st.markdown("### 3️⃣ Filtered Results")
+    st.markdown("### 3️⃣ Filtered name list")
 
     if filtered.empty:
         st.warning("No referees match your filters.")
         return
 
-    filtered["Select"] = filtered.apply(
-        lambda r: f"➡️ {r['first_name']} {r['last_name']} ({r['nationality']})",
-        axis=1
-    )
-
     st.dataframe(
         filtered[[
-            "Select",
             "first_name",
             "last_name",
             "nationality",
@@ -889,17 +884,18 @@ def page_referee_search():
     # ====================================
     # 4️⃣ SELECT REFEREE PROFILE
     # ====================================
-    st.markdown("### 4️⃣ Select referee")
+    st.markdown("### 4️⃣ Select name to view profile")
 
-    select_options = list(filtered["Select"])
+    select_options = list(filtered["display"])
     sel_label = st.selectbox(
-        "Choose name",
+        "Select referee",
         select_options,
         key="profile_select"
     )
 
-    sel_id = filtered[filtered["Select"] == sel_label].iloc[0]["ref_id"]
+    sel_id = filtered[filtered["display"] == sel_label].iloc[0]["ref_id"]
     prof = refs[refs["ref_id"] == sel_id].iloc[0]
+
 
     # ====================================
     # 5️⃣ PROFILE DISPLAY
