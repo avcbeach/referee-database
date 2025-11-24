@@ -416,6 +416,10 @@ def page_admin_referees():
     require_admin()
     st.title("👤 Admin – Referees & Officials")
 
+    # 🔥 ENSURE select_ref_key ALWAYS EXISTS
+    if "select_ref_key" not in st.session_state:
+        st.session_state.select_ref_key = 0
+
     # Load data
     refs = load_referees()
     events = load_events()
