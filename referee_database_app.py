@@ -405,150 +405,168 @@ def require_admin():
 # PAGE: ADMIN – REFEREES
 # =========================
 
+def referee_display_name(row):
+    fn = str(row.get("first_name", "")).strip()
+    ln = str(row.get("last_name", "")).strip()
+    nat = str(row.get("nationality", "")).strip()
+    return f"{fn} {ln} - {nat}".strip()
+
+
 def page_admin_referees():
     require_admin()
     st.title("👤 Admin – Referees & Officials")
 
+    # Load data
     refs = load_referees()
     events = load_events()
     assignments = load_assignments()
 
+    # --- SESSION STATE ---
+    if "new_mode" not in st.session_state:
+        st.session_state.new_mode = False
+
+    if "selected_ref" not in st.session_state:
+        st.session_state.selected_ref = None
+
     st.markdown("Use this page to **add or edit referees and officials**.")
 
-    # Selection for edit
-    if refs.empty:
-        options = ["<New>"]
-        mapping = {}
-    else:
-        refs["display"] = refs.apply(referee_display_name, axis=1)
-        refs = refs.sort_values("display")
-        mapping = {row["display"]: row["ref_id"] for _, row in refs.iterrows()}
-        options = ["<New>"] + list(mapping.keys())
+    # ------------------------------
+    # ➕ NEW BUTTON
+    # ------------------------------
+    if st.button("➕ New Referee / Official"):
+        st.session_state.new_mode = True
+        st.session_state.selected_ref = None
 
-    sel = st.selectbox("Select referee/official", options)
-    sel_id = mapping.get(sel)
-    if sel_id:
-        row = refs[refs["ref_id"] == sel_id].iloc[0]
+    # ------------------------------
+    # List all referees (sorted by first name)
+    # ------------------------------
+    if not refs.empty:
+        refs["display"] = refs.apply(referee_display_name, axis=1)
+        refs = refs.sort_values(by=["first_name", "last_name"])
+        mapping = {row["display"]: row["ref_id"] for _, row in refs.iterrows()}
+        name_list = list(mapping.keys())
+    else:
+        name_list = []
+        mapping = {}
+
+    # ------------------------------
+    # SELECTION DROPDOWN
+    # ------------------------------
+    sel = st.selectbox("Select referee/official", [""] + name_list)
+
+    if sel in mapping:
+        st.session_state.new_mode = False
+        st.session_state.selected_ref = mapping[sel]
+
+    # Determine selected row
+    if st.session_state.new_mode:
+        row = None
+    elif st.session_state.selected_ref:
+        row = refs[refs["ref_id"] == st.session_state.selected_ref].iloc[0]
     else:
         row = None
 
+    # ===============================
+    # ===== FORM: REFEREE DATA =====
+    # ===============================
     st.subheader("Referee / Official Information")
+
     with st.form("ref_form"):
+        # Column sets
         c1, c2, c3 = st.columns(3)
         with c1:
             first_name = st.text_input("First name", value=row["first_name"] if row is not None else "")
             last_name = st.text_input("Last name", value=row["last_name"] if row is not None else "")
             gender = st.selectbox(
-                "Gender",
-                GENDERS,
-                index=GENDERS.index(row["gender"]) if row is not None and row["gender"] in GENDERS else 0,
+                "Gender", GENDERS,
+                index=GENDERS.index(row["gender"]) if row is not None and row["gender"] in GENDERS else 0
             )
+
         with c2:
-            NOC_LIST = [
+            # Alphabetical NOC list
+            NOC_LIST = sorted([
                "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
                "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR","KOR","KUW","LAO","LIB",
                "MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU","NMI","NRU","NZL","OMA","PAK","PAU",
                "PHI","PLE","PNG","PRK","QAT","SAM","SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM",
                "TLS","TPE","TUV","UAE","UZB","VAN","VIE","YEM"
-            ]
+            ])
 
             nationality = st.selectbox(
-               "Nationality",
-               NOC_LIST,
+               "Nationality", NOC_LIST,
                index=NOC_LIST.index(row["nationality"]) if row is not None and row["nationality"] in NOC_LIST else 0
             )
 
             zone = st.selectbox(
-                "Zone",
-                ZONES,
-                index=ZONES.index(row["zone"]) if row is not None and row["zone"] in ZONES else 0,
+                "Zone", ZONES,
+                index=ZONES.index(row["zone"]) if row is not None and row["zone"] in ZONES else 0
             )
-            try:
-                bd_default = datetime.strptime(row["birthdate"], "%Y-%m-%d").date() if row is not None and row["birthdate"] else date(1990,1,1)
-            except:
-                bd_default = date(1990,1,1)
 
-            birthdate_date = st.date_input(
-                "Birthdate",
-                value=bd_default
-            )
-            birthdate = birthdate_date.isoformat()
+            try:
+                bd_default = (
+                    datetime.strptime(row["birthdate"], "%Y-%m-%d").date()
+                    if row is not None and row["birthdate"]
+                    else date(1990, 1, 1)
+                )
+            except:
+                bd_default = date(1990, 1, 1)
+
+            birthdate = st.date_input("Birthdate", value=bd_default).isoformat()
+
         with c3:
-            fivb_id = st.text_input(
-                "FIVB ID",
-                value=row["fivb_id"] if row is not None else "",
-            )
-            email = st.text_input(
-                "Email",
-                value=row["email"] if row is not None else "",
-            )
-            phone = st.text_input(
-                "Phone",
-                value=row["phone"] if row is not None else "",
-            )
+            fivb_id = st.text_input("FIVB ID", value=row["fivb_id"] if row is not None else "")
+            email = st.text_input("Email", value=row["email"] if row is not None else "")
+            phone = st.text_input("Phone", value=row["phone"] if row is not None else "")
 
         c4, c5, c6 = st.columns(3)
         with c4:
             origin_airport = st.text_input(
-                "Origin airport (e.g. BKK, PEK)",
-                value=row["origin_airport"] if row is not None else "",
+                "Origin airport (e.g. BKK, PEK)", value=row["origin_airport"] if row is not None else ""
             )
             position_type = st.selectbox(
-                "Position",
-                POSITION_TYPES,
-                index=POSITION_TYPES.index(row["position_type"]) if row is not None and row["position_type"] in POSITION_TYPES else 2,
+                "Position", POSITION_TYPES,
+                index=POSITION_TYPES.index(row["position_type"]) if row is not None and row["position_type"] in POSITION_TYPES else 2
             )
+
         with c5:
             cc_role = st.selectbox(
-                "If Control Committee – Role",
-                CC_ROLES,
-                index=CC_ROLES.index(row["cc_role"]) if row is not None and row["cc_role"] in CC_ROLES else 0,
-                help="Technical Delegate / Referee Coach / Both (for Control Committee only)",
+                "If Control Committee – Role", CC_ROLES,
+                index=CC_ROLES.index(row["cc_role"]) if row is not None and row["cc_role"] in CC_ROLES else 0
             )
             ref_level = st.selectbox(
-                "If Referee – Level",
-                REF_LEVELS,
-                index=REF_LEVELS.index(row["ref_level"]) if row is not None and row["ref_level"] in REF_LEVELS else 0,
+                "If Referee – Level", REF_LEVELS,
+                index=REF_LEVELS.index(row["ref_level"]) if row is not None and row["ref_level"] in REF_LEVELS else 0
             )
+
         with c6:
-            course_year = st.text_input(
-                "Course year (for referees)",
-                value=row["course_year"] if row is not None else "",
-            )
-            ref_type = st.selectbox(
-                "Type",
-                REF_TYPES,
-                index=REF_TYPES.index(row["type"]) if row is not None and row["type"] in REF_TYPES else 0,
+            course_year = st.text_input("Course year (for referees)", value=row["course_year"] if row is not None else "")
+            ref_type = st.selectbox("Type", REF_TYPES,
+                index=REF_TYPES.index(row["type"]) if row is not None and row["type"] in REF_TYPES else 0
             )
 
         c7, c8 = st.columns(2)
         with c7:
-            active = st.checkbox(
-                "Active",
-                value=(row["active"] == "True") if row is not None else True,
-            )
+            active = st.checkbox("Active", value=(row["active"] == "True") if row is not None else True)
+
             shirt_default = row["shirt_size"] if row is not None else ""
             if shirt_default not in UNIFORM_SIZES:
                 shirt_default = ""
-            shirt_size = st.selectbox(
-                "Shirt size",
-                UNIFORM_SIZES,
-                index=UNIFORM_SIZES.index(shirt_default),
-            )
+            shirt_size = st.selectbox("Shirt size", UNIFORM_SIZES, index=UNIFORM_SIZES.index(shirt_default))
+
         with c8:
             shorts_default = row["shorts_size"] if row is not None else ""
             if shorts_default not in UNIFORM_SIZES:
                 shorts_default = ""
-            shorts_size = st.selectbox(
-                "Shorts size",
-                UNIFORM_SIZES,
-                index=UNIFORM_SIZES.index(shorts_default),
-            )
+            shorts_size = st.selectbox("Shorts size", UNIFORM_SIZES, index=UNIFORM_SIZES.index(shorts_default))
+
             photo_file = st.file_uploader("Photo ID (optional)", type=["jpg", "jpeg", "png"])
             passport_file = st.file_uploader("Passport (optional)", type=["pdf", "jpg", "jpeg", "png"])
 
         submitted = st.form_submit_button("💾 Save")
 
+    # ======================
+    # SAVE LOGIC
+    # ======================
     if submitted:
         if not first_name.strip() and not last_name.strip():
             st.error("Please enter at least first name or last name.")
@@ -556,12 +574,13 @@ def page_admin_referees():
 
         ensure_dirs()
 
+        # NEW
         if row is None:
-            # New referee
             ref_id = new_id()
             photo_path = ""
             passport_path = ""
 
+            # Save files
             if photo_file is not None:
                 ext = os.path.splitext(photo_file.name)[1]
                 fname = f"{ref_id}{ext}"
@@ -569,13 +588,6 @@ def page_admin_referees():
                 full_photo_path = os.path.join(DATA_DIR, photo_path)
                 with open(full_photo_path, "wb") as f:
                     f.write(photo_file.getbuffer())
-                cfg = github_config()
-                if cfg:
-                    github_write_file(
-                        os.path.join(DATA_DIR, photo_path),
-                        photo_file.getbuffer().tobytes(),
-                        f"Add photo {fname} via referee app",
-                    )
 
             if passport_file is not None:
                 ext = os.path.splitext(passport_file.name)[1]
@@ -584,13 +596,6 @@ def page_admin_referees():
                 full_pass_path = os.path.join(DATA_DIR, passport_path)
                 with open(full_pass_path, "wb") as f:
                     f.write(passport_file.getbuffer())
-                cfg = github_config()
-                if cfg:
-                    github_write_file(
-                        os.path.join(DATA_DIR, passport_path),
-                        passport_file.getbuffer().tobytes(),
-                        f"Add passport {fname} via referee app",
-                    )
 
             new_row = pd.DataFrame([{
                 "ref_id": ref_id,
@@ -599,7 +604,7 @@ def page_admin_referees():
                 "gender": gender,
                 "nationality": nationality.strip(),
                 "zone": zone,
-                "birthdate": birthdate.strip(),
+                "birthdate": birthdate,
                 "fivb_id": fivb_id.strip(),
                 "email": email.strip(),
                 "phone": phone.strip(),
@@ -615,16 +620,19 @@ def page_admin_referees():
                 "active": str(active),
                 "type": ref_type,
             }])
+
             refs = pd.concat([refs, new_row], ignore_index=True)
             save_referees(refs)
             st.success("Referee/official added ✅")
 
         else:
-            # Update existing
+            # UPDATE
             idx = refs[refs["ref_id"] == row["ref_id"]].index[0]
+
             photo_path = refs.loc[idx, "photo_file"]
             passport_path = refs.loc[idx, "passport_file"]
 
+            # update files
             if photo_file is not None:
                 ext = os.path.splitext(photo_file.name)[1]
                 fname = f"{row['ref_id']}{ext}"
@@ -632,13 +640,6 @@ def page_admin_referees():
                 full_photo_path = os.path.join(DATA_DIR, photo_path)
                 with open(full_photo_path, "wb") as f:
                     f.write(photo_file.getbuffer())
-                cfg = github_config()
-                if cfg:
-                    github_write_file(
-                        os.path.join(DATA_DIR, photo_path),
-                        photo_file.getbuffer().tobytes(),
-                        f"Update photo {fname} via referee app",
-                    )
 
             if passport_file is not None:
                 ext = os.path.splitext(passport_file.name)[1]
@@ -647,20 +648,14 @@ def page_admin_referees():
                 full_pass_path = os.path.join(DATA_DIR, passport_path)
                 with open(full_pass_path, "wb") as f:
                     f.write(passport_file.getbuffer())
-                cfg = github_config()
-                if cfg:
-                    github_write_file(
-                        os.path.join(DATA_DIR, passport_path),
-                        passport_file.getbuffer().tobytes(),
-                        f"Update passport {fname} via referee app",
-                    )
 
+            # write fields
             refs.loc[idx, "first_name"] = first_name.strip()
             refs.loc[idx, "last_name"] = last_name.strip()
             refs.loc[idx, "gender"] = gender
             refs.loc[idx, "nationality"] = nationality.strip()
             refs.loc[idx, "zone"] = zone
-            refs.loc[idx, "birthdate"] = birthdate.strip()
+            refs.loc[idx, "birthdate"] = birthdate
             refs.loc[idx, "fivb_id"] = fivb_id.strip()
             refs.loc[idx, "email"] = email.strip()
             refs.loc[idx, "phone"] = phone.strip()
@@ -679,208 +674,82 @@ def page_admin_referees():
             save_referees(refs)
             st.success("Referee/official updated ✅")
 
-    # Delete referee
+        # RESET FORM AFTER SAVE
+        st.session_state.new_mode = True
+        st.session_state.selected_ref = None
+        st.rerun()
+
+    # ======================
+    # DELETE SECTION
+    # ======================
     if row is not None:
         st.markdown("---")
         st.subheader("🗑️ Delete this referee")
 
         ref_name = referee_display_name(row)
         st.warning(
-            "You are about to permanently delete **%s**.\n\n"
+            f"You are about to permanently delete **{ref_name}**.\n\n"
             "This will remove:\n"
-            "- Their personal details\n"
-            "- All availability submissions linked to this referee\n"
-            "- All event nominations linked to this referee\n\n"
-            "This action cannot be undone." % ref_name
+            "- Their details\n"
+            "- Availability\n"
+            "- Assignments\n\n"
+            "**This action cannot be undone.**"
         )
 
-        confirm_delete = st.checkbox("Yes, I want to delete this referee permanently.")
+        confirm = st.checkbox("Yes, delete permanently.")
 
-        if st.button("🗑️ Delete Referee") and confirm_delete:
+        if st.button("🗑️ Delete Referee") and confirm:
             refs = refs[refs["ref_id"] != row["ref_id"]]
+            save_referees(refs)
 
             avail = load_availability()
             if not avail.empty:
-                avail = avail[avail["ref_id"] != row["ref_id"]]
-                save_availability(avail)
+                save_availability(avail[avail["ref_id"] != row["ref_id"]])
 
             assignments = load_assignments()
             if not assignments.empty:
-                assignments = assignments[assignments["ref_id"] != row["ref_id"]]
-                save_assignments(assignments)
+                save_assignments(assignments[assignments["ref_id"] != row["ref_id"]])
 
-            photo_path = row.get("photo_file", "")
-            if isinstance(photo_path, str) and photo_path:
-                full_photo = os.path.join(DATA_DIR, photo_path)
-                if os.path.exists(full_photo):
-                    os.remove(full_photo)
+            # Remove files
+            if row.get("photo_file"):
+                fp = os.path.join(DATA_DIR, row["photo_file"])
+                if os.path.exists(fp):
+                    os.remove(fp)
 
-            passport_path = row.get("passport_file", "")
-            if isinstance(passport_path, str) and passport_path:
-                full_pass = os.path.join(DATA_DIR, passport_path)
-                if os.path.exists(full_pass):
-                    os.remove(full_pass)
+            if row.get("passport_file"):
+                fp = os.path.join(DATA_DIR, row["passport_file"])
+                if os.path.exists(fp):
+                    os.remove(fp)
 
-            save_referees(refs)
-            st.success("Referee deleted successfully ✅")
+            st.success("Deleted successfully.")
+            st.session_state.selected_ref = None
+            st.session_state.new_mode = True
             st.rerun()
 
-    # Quick listing
+    # ======================
+    # LIST REFS BY CATEGORY
+    # ======================
     st.markdown("---")
     st.subheader("All Referees / Officials")
+
     if refs.empty:
         st.info("No data yet.")
     else:
-        view_cols = [
-            "first_name",
-            "last_name",
-            "position_type",
-            "ref_level",
-            "cc_role",
-            "nationality",
-            "zone",
-            "shirt_size",
-            "shorts_size",
-            "active",
-            "type",
-        ]
+        refs_sorted = refs.sort_values(by=["first_name", "last_name"])
+
+        st.write("### 🟦 Referees")
         st.dataframe(
-            refs[view_cols].sort_values(["position_type", "last_name", "first_name"]),
+            refs_sorted[refs_sorted["position_type"] == "Referee"]
+            [["first_name", "last_name", "ref_level", "nationality", "zone", "active"]],
             use_container_width=True,
         )
 
-    # Import from Excel/CSV
-    st.markdown("---")
-    st.subheader("📥 Import referees from Excel / CSV")
-
-    st.markdown(
-        """
-The file should contain columns (header names):
-
-- `first_name`
-- `last_name`
-- `gender`
-- `nationality`
-- `zone`
-- `birthdate`
-- `fivb_id`
-- `email`
-- `phone`
-- `origin_airport`
-- `position_type`
-- `cc_role`
-- `ref_level`
-- `course_year`
-- `shirt_size`
-- `shorts_size`
-- `active` (True/False/Yes/No)
-- `type` (Indoor/Beach/Both)
-
-Existing referees will be **kept**.  
-New rows will be **added**.  
-If an imported row has a FIVB ID that already exists, it will be **skipped**.
-"""
-    )
-
-    uploaded = st.file_uploader("Upload Excel or CSV file", type=["xlsx", "xls", "csv"], key="ref_import")
-
-    if uploaded is not None:
-        try:
-            if uploaded.name.lower().endswith(".csv"):
-                df_imp = pd.read_csv(uploaded, dtype=str)
-            else:
-                df_imp = pd.read_excel(uploaded, dtype=str)
-        except Exception as e:
-            st.error(f"Could not read file: {e}")
-            return
-
-        df_imp = df_imp.fillna("")
-        st.write("Preview of imported data:")
-        st.dataframe(df_imp.head(), use_container_width=True)
-
-        required_cols = ["first_name", "last_name"]
-        missing = [c for c in required_cols if c not in df_imp.columns]
-        if missing:
-            st.error(f"Missing required columns: {missing}")
-            return
-
-        if st.button("✅ Import into referee database"):
-            refs_current = load_referees()
-            existing_fivb = set(refs_current["fivb_id"].astype(str).str.strip())
-
-            new_rows = []
-            skipped_duplicate = 0
-            added_count = 0
-
-            for _, r in df_imp.iterrows():
-                fn = str(r.get("first_name", "")).strip()
-                ln = str(r.get("last_name", "")).strip()
-                if not fn and not ln:
-                    continue
-
-                fivb_str = str(r.get("fivb_id", "")).strip()
-                if fivb_str and fivb_str in existing_fivb:
-                    skipped_duplicate += 1
-                    continue
-
-                gender = str(r.get("gender", "")).strip()
-                nationality = str(r.get("nationality", "")).strip()
-                zone = str(r.get("zone", "")).strip()
-                birthdate = str(r.get("birthdate", "")).strip()
-                email = str(r.get("email", "")).strip()
-                phone = str(r.get("phone", "")).strip()
-                origin_airport = str(r.get("origin_airport", "")).strip()
-                position_type = str(r.get("position_type", "")).strip()
-                cc_role = str(r.get("cc_role", "")).strip()
-                ref_level = str(r.get("ref_level", "")).strip()
-                course_year = str(r.get("course_year", "")).strip()
-                shirt_size = str(r.get("shirt_size", "")).strip()
-                shorts_size = str(r.get("shorts_size", "")).strip()
-                active_raw = str(r.get("active", "")).strip().lower()
-                ref_type = str(r.get("type", "")).strip()
-
-                if active_raw in ["true", "yes", "y", "1"]:
-                    active_str = "True"
-                elif active_raw in ["false", "no", "n", "0"]:
-                    active_str = "False"
-                else:
-                    active_str = "True"
-
-                new_rows.append({
-                    "ref_id": new_id(),
-                    "first_name": fn,
-                    "last_name": ln,
-                    "gender": gender,
-                    "nationality": nationality,
-                    "zone": zone,
-                    "birthdate": birthdate,
-                    "fivb_id": fivb_str,
-                    "email": email,
-                    "phone": phone,
-                    "origin_airport": origin_airport,
-                    "position_type": position_type,
-                    "cc_role": cc_role,
-                    "ref_level": ref_level,
-                    "course_year": course_year,
-                    "photo_file": "",
-                    "passport_file": "",
-                    "shirt_size": shirt_size,
-                    "shorts_size": shorts_size,
-                    "active": active_str,
-                    "type": ref_type,
-                })
-                added_count += 1
-
-            if new_rows:
-                df_new = pd.DataFrame(new_rows)
-                refs_updated = pd.concat([refs_current, df_new], ignore_index=True)
-                save_referees(refs_updated)
-                msg = f"Imported {added_count} referees."
-                if skipped_duplicate:
-                    msg += f" Skipped {skipped_duplicate} rows due to duplicate FIVB IDs."
-                st.success(msg)
-            else:
-                st.info("No new referees were added from this file.")
+        st.write("### 🟩 Officials (Control Committee)")
+        st.dataframe(
+            refs_sorted[refs_sorted["position_type"] == "Control Committee"]
+            [["first_name", "last_name", "cc_role", "nationality", "zone", "active"]],
+            use_container_width=True,
+        )
 
 
 # =========================
