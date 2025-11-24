@@ -492,6 +492,9 @@ def page_admin_referees():
     if sel in mapping and sel != "":
         st.session_state.new_mode = False
         st.session_state.selected_ref = mapping[sel]
+    else:
+        st.session_state.new_mode = True
+        st.session_state.selected_ref = None
 
     # ------------------------------
     # DETERMINE SELECTED ROW
@@ -530,6 +533,7 @@ def page_admin_referees():
             "active": "True",
             "type": ""
         }
+        st.session_state.new_mode = True
 
     # ===============================
     # ===== FORM: REFEREE DATA =====
