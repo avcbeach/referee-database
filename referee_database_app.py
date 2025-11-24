@@ -1695,7 +1695,7 @@ This form is **private** — only you and administrators can view your submissio
     birth_on_file = str(ref_row.get("birthdate", "")).strip()
 
     if not birth_on_file:
-        st.error("Your birthdate is not recorded yet in the system. Please contact the administrator.")
+        st.error("Your birthdate is not recorded yet in the system. Please contact the administrator at beachvolleyball@asianvolleyball.net")
         return
 
     st.markdown(f"### 👋 Hello **{ref_row['first_name']} {ref_row['last_name']}**")
