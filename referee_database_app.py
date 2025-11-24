@@ -490,7 +490,7 @@ def page_admin_referees():
         st.session_state.new_mode = False
     else:
         if "selected_ref" not in st.session_state or st.session_state.selected_ref is None:
-        st.session_state.new_mode = True
+        	st.session_state.new_mode = True
 
     # ------------------------------
     # DETERMINE SELECTED ROW
