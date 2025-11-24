@@ -486,11 +486,11 @@ def page_admin_referees():
     )
 
     if sel in mapping and sel != "":
-        st.session_state.new_mode = False
         st.session_state.selected_ref = mapping[sel]
+        st.session_state.new_mode = False
     else:
+        if "selected_ref" not in st.session_state or st.session_state.selected_ref is None:
         st.session_state.new_mode = True
-        st.session_state.selected_ref = None
 
     # ------------------------------
     # DETERMINE SELECTED ROW
