@@ -859,6 +859,169 @@ def page_referee_search():
                     st.caption("Passport path saved, but file not found locally.")
             else:
                 st.caption("No passport uploaded.")
+    # ====================================
+    # ✏️ EDIT REFEREE INFORMATION (INLINE)
+    # ====================================
+    st.markdown("---")
+    st.subheader("✏️ Edit Referee Information")
+
+    with st.form("edit_ref_form"):
+        c1, c2 = st.columns(2)
+
+        with c1:
+            fn = st.text_input("First name", prof["first_name"])
+            ln = st.text_input("Last name", prof["last_name"])
+            gender = st.selectbox(
+                "Gender",
+                GENDERS,
+                index=GENDERS.index(prof["gender"])
+            )
+
+            # Nationality list sorted
+            NOC_LIST = sorted([
+                "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ",
+                "FSM","GUM","HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR",
+                "KOR","KUW","LAO","LIB","MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU",
+                "NMI","NRU","NZL","OMA","PAK","PAU","PHI","PLE","PNG","PRK","QAT","SAM",
+                "SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM","TLS","TPE","TUV","UAE",
+                "UZB","VAN","VIE","YEM"
+            ])
+
+            nationality = st.selectbox(
+                "Nationality",
+                NOC_LIST,
+                index=NOC_LIST.index(prof["nationality"]) if prof["nationality"] in NOC_LIST else 0
+            )
+
+            zone = st.selectbox(
+                "Zone",
+                ZONES,
+                index=ZONES.index(prof["zone"]) if prof["zone"] in ZONES else 0
+            )
+
+            birthdate = st.text_input("Birthdate (YYYY-MM-DD)", prof["birthdate"])
+            email = st.text_input("Email", prof["email"])
+            phone = st.text_input("Phone", prof["phone"])
+
+        with c2:
+            origin_airport = st.text_input("Origin airport", prof["origin_airport"])
+
+            position_type = st.selectbox(
+                "Position",
+                POSITION_TYPES,
+                index=POSITION_TYPES.index(prof["position_type"])
+                if prof["position_type"] in POSITION_TYPES else 0
+            )
+
+            cc_role = st.selectbox(
+                "CC Role",
+                CC_ROLES,
+                index=CC_ROLES.index(prof["cc_role"])
+                if prof["position_type"] == "Control Committee" else 0
+            )
+
+            ref_level = st.selectbox(
+                "Referee level",
+                REF_LEVELS,
+                index=REF_LEVELS.index(prof["ref_level"])
+                if prof["position_type"] == "Referee" else 0
+            )
+
+            course_year = st.text_input("Course year", prof["course_year"])
+
+            shirt_size = st.selectbox(
+                "Shirt size",
+                UNIFORM_SIZES,
+                index=UNIFORM_SIZES.index(prof["shirt_size"])
+                if prof["shirt_size"] in UNIFORM_SIZES else 0
+            )
+
+            shorts_size = st.selectbox(
+                "Shorts size",
+                UNIFORM_SIZES,
+                index=UNIFORM_SIZES.index(prof["shorts_size"])
+                if prof["shorts_size"] in UNIFORM_SIZES else 0
+            )
+
+            active = st.checkbox("Active", value=(prof["active"] == "True"))
+
+        save_edit = st.form_submit_button("💾 Save changes")
+
+    if save_edit:
+        refs_all = load_referees()
+        idx = refs_all[refs_all["ref_id"] == prof["ref_id"]].index[0]
+
+        refs_all.loc[idx, "first_name"] = fn.strip()
+        refs_all.loc[idx, "last_name"] = ln.strip()
+        refs_all.loc[idx, "gender"] = gender
+        refs_all.loc[idx, "nationality"] = nationality
+        refs_all.loc[idx, "zone"] = zone
+        refs_all.loc[idx, "birthdate"] = birthdate.strip()
+        refs_all.loc[idx, "email"] = email.strip()
+        refs_all.loc[idx, "phone"] = phone.strip()
+        refs_all.loc[idx, "origin_airport"] = origin_airport.strip()
+        refs_all.loc[idx, "position_type"] = position_type
+        refs_all.loc[idx, "cc_role"] = cc_role
+        refs_all.loc[idx, "ref_level"] = ref_level
+        refs_all.loc[idx, "course_year"] = course_year.strip()
+        refs_all.loc[idx, "shirt_size"] = shirt_size
+        refs_all.loc[idx, "shorts_size"] = shorts_size
+        refs_all.loc[idx, "active"] = str(active)
+
+        save_referees(refs_all)
+        st.success("Referee updated successfully! 🔄")
+        st.rerun()
+
+    # ====================================
+    # 📅 AVAILABILITY RESPONSES (INLINE)
+    # ====================================
+    st.markdown("---")
+    st.subheader("📅 Availability Responses")
+
+    avail = load_availability()
+
+    # Filter only this referee's data
+    my_avail = avail[avail["ref_id"] == prof["ref_id"]].copy()
+
+    if my_avail.empty:
+        st.caption("No availability submissions from this referee yet.")
+    else:
+        # Load events for readable names
+        events = load_events()
+        if not events.empty:
+            ev_small = events[[
+                "event_id",
+                "season",
+                "start_date",
+                "end_date",
+                "event_name",
+                "location"
+            ]]
+
+            my_avail = my_avail.merge(ev_small, on="event_id", how="left")
+
+        # Name mapping
+        rename_map = {
+            "season": "Season",
+            "event_name": "Event",
+            "location": "Location",
+            "start_date": "Start",
+            "end_date": "End",
+            "availability": "Availability",
+            "comments": "Comments",
+        }
+        my_avail = my_avail.rename(columns=rename_map)
+
+        show_cols = ["Season", "Event", "Location", "Start", "End", "Availability", "Comments"]
+
+        # Sort by season + start date
+        if "Season" in my_avail.columns and "Start" in my_avail.columns:
+            my_avail = my_avail.sort_values(["Season", "Start"])
+
+        st.dataframe(
+            my_avail[show_cols],
+            use_container_width=True
+        )
 
     # =========================
     # ADMIN-ONLY EVENT NOMINATIONS FOR THIS REFEREE
