@@ -433,7 +433,7 @@ def page_admin_referees():
     st.markdown("Use this page to **add or edit referees and officials**.")
 
     # ------------------------------
-    # ➕ NEW BUTTON (fixed with rerun)
+    # ➕ NEW BUTTON (clear form)
     # ------------------------------
     if st.button("➕ New Referee / Official"):
         st.session_state.new_mode = True
@@ -441,15 +441,30 @@ def page_admin_referees():
         st.rerun()
 
     # ------------------------------
-    # REFEREE LIST (sorted by FIRST name)
+    # CATEGORY SELECTBOX (NEW)
     # ------------------------------
+    st.markdown("### Filter by Category")
+    category_choice = st.selectbox(
+        "Position type",
+        ["All", "Referee", "Control Committee"],
+        key="admin_ref_category"
+    )
+
     if not refs.empty:
+
+        # Apply category filter
+        if category_choice != "All":
+            refs = refs[refs["position_type"] == category_choice]
+
+        # Build display
         refs["display"] = refs.apply(referee_display_name, axis=1)
+
+        # Sort alphabetically by FIRST name
         refs = refs.sort_values(by=["first_name", "last_name"])
 
-        # map "Name - NOC" → ref_id
         mapping = {row["display"]: row["ref_id"] for _, row in refs.iterrows()}
         name_list = list(mapping.keys())
+
     else:
         name_list = []
         mapping = {}
@@ -470,6 +485,7 @@ def page_admin_referees():
         row = refs[refs["ref_id"] == st.session_state.selected_ref].iloc[0]
     else:
         row = None
+
 
     # ===============================
     # ===== FORM: REFEREE DATA =====
