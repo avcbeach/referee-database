@@ -529,7 +529,6 @@ def page_admin_referees():
             "active": "True",
             "type": ""
         }
-        st.session_state.new_mode = True
 
     # ===============================
     # ===== FORM: REFEREE DATA =====
