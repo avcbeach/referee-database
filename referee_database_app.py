@@ -421,7 +421,9 @@ def page_admin_referees():
     events = load_events()
     assignments = load_assignments()
 
-    # --- SESSION STATE ---
+    # ------------------------------
+    # SESSION STATE
+    # ------------------------------
     if "new_mode" not in st.session_state:
         st.session_state.new_mode = False
 
@@ -431,18 +433,21 @@ def page_admin_referees():
     st.markdown("Use this page to **add or edit referees and officials**.")
 
     # ------------------------------
-    # ➕ NEW BUTTON
+    # ➕ NEW BUTTON (fixed with rerun)
     # ------------------------------
     if st.button("➕ New Referee / Official"):
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
+        st.rerun()
 
     # ------------------------------
-    # List all referees (sorted by first name)
+    # REFEREE LIST (sorted by FIRST name)
     # ------------------------------
     if not refs.empty:
         refs["display"] = refs.apply(referee_display_name, axis=1)
         refs = refs.sort_values(by=["first_name", "last_name"])
+
+        # map "Name - NOC" → ref_id
         mapping = {row["display"]: row["ref_id"] for _, row in refs.iterrows()}
         name_list = list(mapping.keys())
     else:
