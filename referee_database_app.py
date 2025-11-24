@@ -645,7 +645,7 @@ def page_admin_referees():
 
         if not first_name.strip() and not last_name.strip():
             st.error("Please enter at least first name or last name.")
-            return
+            st.stop()
 
         ensure_dirs()
 
