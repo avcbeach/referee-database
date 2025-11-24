@@ -1668,7 +1668,7 @@ This form is **private** — only you and administrators can view your submissio
         st.error(f"No {category} found in database.")
         return
 
-    refs_filtered = refs_filtered.sort_values(["last_name", "first_name"])
+    refs_filtered = refs_filtered.sort_values(["first_name", "last_name"])
 
     # Show only ID, Name (NAT)
     refs_filtered["display"] = refs_filtered.apply(
