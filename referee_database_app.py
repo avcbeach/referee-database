@@ -447,6 +447,22 @@ def page_admin_referees():
         st.session_state.selected_ref = None
         st.rerun()
 
+    # 🔥 FULL RESET OF ALL FORM FIELDS
+    reset_keys = [
+        "first_name", "last_name", "gender", "nationality", "zone",
+        "birthdate", "fivb_id", "email", "phone", "origin_airport",
+        "position_type", "cc_role", "ref_level", "course_year",
+        "shirt_size", "shorts_size", "type", "active",
+        "photo_file", "passport_file"
+    ]
+
+    for k in reset_keys:
+        if k in st.session_state:
+            del st.session_state[k]
+
+    # force selectbox reset
+    st.session_state.select_ref_key += 1
+
     # ------------------------------
     # CATEGORY SELECTBOX
     # ------------------------------
@@ -746,9 +762,23 @@ def page_admin_referees():
             save_referees(refs)
             st.success("Referee/official updated")
 
-        # RESET FORM AFTER SAVE
+        # RESET FORM AFTER SAVE (FULL CLEAR)
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
+
+        reset_keys = [
+            "first_name", "last_name", "gender", "nationality", "zone",
+            "birthdate", "fivb_id", "email", "phone", "origin_airport",
+            "position_type", "cc_role", "ref_level", "course_year",
+            "shirt_size", "shorts_size", "type", "active",
+            "photo_file", "passport_file"
+        ]
+
+        for k in reset_keys:
+            if k in st.session_state:
+                del st.session_state[k]
+
+        st.session_state.select_ref_key += 1
         st.rerun()
 
 
