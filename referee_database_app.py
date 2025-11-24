@@ -427,8 +427,15 @@ def page_admin_referees():
     if "new_mode" not in st.session_state:
         st.session_state.new_mode = False
 
-    if "selected_ref" not in st.session_state:
-        st.session_state.selected_ref = None
+    # ------------------------------
+    # FORM RESET KEY
+    # ------------------------------
+    if "ref_form_key" not in st.session_state:
+        st.session_state.ref_form_key = 0
+
+    # When NEW button is pressed → force reset
+    if st.session_state.new_mode:
+        st.session_state.ref_form_key += 1
 
     st.markdown("Use this page to **add or edit referees and officials**.")
 
