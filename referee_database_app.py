@@ -530,42 +530,46 @@ def page_admin_referees():
     # ===============================
     st.subheader("Referee / Official Information")
 
+    # Create dynamic key prefix
+    form_prefix = f"ref_{st.session_state.select_ref_key}_"
+
     with st.form("ref_form"):
         # Column sets
         c1, c2, c3 = st.columns(3)
         with c1:
-            first_name = st.text_input("First name", value=row["first_name"] if row is not None else "")
-            last_name = st.text_input("Last name", value=row["last_name"] if row is not None else "")
+            first_name = st.text_input(
+                "First name",
+                value=row["first_name"],
+                key=form_prefix + "first_name"
+            )
+            last_name = st.text_input(
+                "Last name",
+                value=row["last_name"],
+                key=form_prefix + "last_name"
+            )
             gender = st.selectbox(
                 "Gender", GENDERS,
-                index=GENDERS.index(row["gender"]) if row is not None and row["gender"] in GENDERS else 0
+                index=GENDERS.index(row["gender"]) if row["gender"] in GENDERS else 0,
+                key=form_prefix + "gender"
             )
 
         with c2:
-            # Alphabetical NOC list
-            NOC_LIST = sorted([
-               "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
-               "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR","KOR","KUW","LAO","LIB",
-               "MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU","NMI","NRU","NZL","OMA","PAK","PAU",
-               "PHI","PLE","PNG","PRK","QAT","SAM","SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM",
-               "TLS","TPE","TUV","UAE","UZB","VAN","VIE","YEM"
-            ])
-
             nationality = st.selectbox(
                "Nationality", NOC_LIST,
-               index=NOC_LIST.index(row["nationality"]) if row is not None and row["nationality"] in NOC_LIST else 0
+               index=NOC_LIST.index(row["nationality"]) if row["nationality"] in NOC_LIST else 0,
+               key=form_prefix + "nationality"
             )
 
             zone = st.selectbox(
                 "Zone", ZONES,
-                index=ZONES.index(row["zone"]) if row is not None and row["zone"] in ZONES else 0
+                index=ZONES.index(row["zone"]) if row["zone"] in ZONES else 0,
+                key=form_prefix + "zone"
             )
 
             try:
                 bd_default = (
                     datetime.strptime(row["birthdate"], "%Y-%m-%d").date()
-                    if row is not None and row["birthdate"]
-                    else date(1990, 1, 1)
+                    if row["birthdate"] else date(1990, 1, 1)
                 )
             except:
                 bd_default = date(1990, 1, 1)
@@ -574,59 +578,105 @@ def page_admin_referees():
                 "Birthdate",
                 value=bd_default,
                 min_value=date(1900, 1, 1),
-                max_value=date(2100, 12, 31)
+                max_value=date(2100, 12, 31),
+                key=form_prefix + "birthdate"
             ).isoformat()
 
         with c3:
-            fivb_id = st.text_input("FIVB ID", value=row["fivb_id"] if row is not None else "")
-            email = st.text_input("Email", value=row["email"] if row is not None else "")
-            phone = st.text_input("Phone", value=row["phone"] if row is not None else "")
+            fivb_id = st.text_input(
+                "FIVB ID",
+                value=row["fivb_id"],
+                key=form_prefix + "fivb_id"
+            )
+            email = st.text_input(
+                "Email",
+                value=row["email"],
+                key=form_prefix + "email"
+            )
+            phone = st.text_input(
+                "Phone",
+                value=row["phone"],
+                key=form_prefix + "phone"
+            )
 
         c4, c5, c6 = st.columns(3)
         with c4:
             origin_airport = st.text_input(
-                "Origin airport (e.g. BKK, PEK)", value=row["origin_airport"] if row is not None else ""
+                "Origin airport (e.g. BKK, PEK)",
+                value=row["origin_airport"],
+                key=form_prefix + "origin_airport"
             )
             position_type = st.selectbox(
                 "Position", POSITION_TYPES,
-                index=POSITION_TYPES.index(row["position_type"]) if row is not None and row["position_type"] in POSITION_TYPES else 2
+                index=POSITION_TYPES.index(row["position_type"]) if row["position_type"] in POSITION_TYPES else 2,
+                key=form_prefix + "position_type"
             )
 
         with c5:
             cc_role = st.selectbox(
                 "If Control Committee – Role", CC_ROLES,
-                index=CC_ROLES.index(row["cc_role"]) if row is not None and row["cc_role"] in CC_ROLES else 0
+                index=CC_ROLES.index(row["cc_role"]) if row["cc_role"] in CC_ROLES else 0,
+                key=form_prefix + "cc_role"
             )
             ref_level = st.selectbox(
                 "If Referee – Level", REF_LEVELS,
-                index=REF_LEVELS.index(row["ref_level"]) if row is not None and row["ref_level"] in REF_LEVELS else 0
+                index=REF_LEVELS.index(row["ref_level"]) if row["ref_level"] in REF_LEVELS else 0,
+                key=form_prefix + "ref_level"
             )
 
         with c6:
-            course_year = st.text_input("Course year (for referees)", value=row["course_year"] if row is not None else "")
-            ref_type = st.selectbox("Type", REF_TYPES,
-                index=REF_TYPES.index(row["type"]) if row is not None and row["type"] in REF_TYPES else 0
+            course_year = st.text_input(
+                "Course year (for referees)",
+                value=row["course_year"],
+                key=form_prefix + "course_year"
+            )
+            ref_type = st.selectbox(
+                "Type",
+                REF_TYPES,
+                index=REF_TYPES.index(row["type"]) if row["type"] in REF_TYPES else 0,
+                key=form_prefix + "type"
             )
 
         c7, c8 = st.columns(2)
         with c7:
-            active = st.checkbox("Active", value=(row["active"] == "True") if row is not None else True)
+            active = st.checkbox(
+                "Active",
+                value=(row["active"] == "True"),
+                key=form_prefix + "active"
+            )
 
-            shirt_default = row["shirt_size"] if row is not None else ""
+            shirt_default = row["shirt_size"]
             if shirt_default not in UNIFORM_SIZES:
                 shirt_default = ""
-            shirt_size = st.selectbox("Shirt size", UNIFORM_SIZES, index=UNIFORM_SIZES.index(shirt_default))
+            shirt_size = st.selectbox(
+                "Shirt size", UNIFORM_SIZES,
+                index=UNIFORM_SIZES.index(shirt_default),
+                key=form_prefix + "shirt_size"
+            )
 
         with c8:
-            shorts_default = row["shorts_size"] if row is not None else ""
+            shorts_default = row["shorts_size"]
             if shorts_default not in UNIFORM_SIZES:
                 shorts_default = ""
-            shorts_size = st.selectbox("Shorts size", UNIFORM_SIZES, index=UNIFORM_SIZES.index(shorts_default))
+            shorts_size = st.selectbox(
+                "Shorts size", UNIFORM_SIZES,
+                index=UNIFORM_SIZES.index(shorts_default),
+                key=form_prefix + "shorts_size"
+            )
 
-            photo_file = st.file_uploader("Photo ID (optional)", type=["jpg", "jpeg", "png"])
-            passport_file = st.file_uploader("Passport (optional)", type=["pdf", "jpg", "jpeg", "png"])
+            photo_file = st.file_uploader(
+                "Photo ID (optional)",
+                type=["jpg","jpeg","png"],
+                key=form_prefix + "photo"
+            )
+            passport_file = st.file_uploader(
+                "Passport (optional)",
+                type=["pdf","jpg","jpeg","png"],
+                key=form_prefix + "passport"
+            )
 
         submitted = st.form_submit_button("💾 Save")
+
 
     # ======================
     # SAVE LOGIC
