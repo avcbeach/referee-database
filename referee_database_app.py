@@ -474,7 +474,6 @@ def page_admin_referees():
                 value=bd_default
             )
             birthdate = birthdate_date.isoformat()
-            )
         with c3:
             fivb_id = st.text_input(
                 "FIVB ID",
