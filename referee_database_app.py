@@ -492,9 +492,6 @@ def page_admin_referees():
     if sel in mapping and sel != "":
         st.session_state.new_mode = False
         st.session_state.selected_ref = mapping[sel]
-    else:
-        st.session_state.new_mode = True
-        st.session_state.selected_ref = None
 
     # ------------------------------
     # DETERMINE SELECTED ROW
@@ -640,6 +637,8 @@ def page_admin_referees():
     # ======================
     # SAVE LOGIC (FIXED)
     # ======================
+    st.write(f"DEBUG new_mode={st.session_state.new_mode}")
+
     if submitted:
         if not first_name.strip() and not last_name.strip():
             st.error("Please enter at least first name or last name.")
