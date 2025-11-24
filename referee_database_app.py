@@ -444,18 +444,36 @@ def page_admin_referees():
                 index=GENDERS.index(row["gender"]) if row is not None and row["gender"] in GENDERS else 0,
             )
         with c2:
-            nationality = st.text_input(
-                "Nationality (e.g. THA, CHN)",
-                value=row["nationality"] if row is not None else "",
+            NOC_LIST = [
+                "", "CHN","KOR","PRK","JPN","HKG","MAC","MGL","TPE",
+                "AFG","BAN","BHU","IND","IRI","KAZ","KGZ","MDV","NEP","PAK","SRI","TJK","TKM","UZB",
+                "BRN","IRQ","JOR","KUW","LIB","OMA","PLE","QAT","KSA","SYR","UAE","YEM",
+                "AUS","ASA","COK","FIJ","GUM","KIR","MSH","FSM","NRU","NZL","NIU","PAU","PNG",
+                "SAM","SOL","TGA","TUV","VAN","NMI","PLY",
+                "BRU","CAM","INA","LAO","MAS","MYA","PHI","SIN","THA","VIE","TLS"
+            ]
+
+            nationality = st.selectbox(
+               "Nationality",
+               NOC_LIST,
+               index=NOC_LIST.index(row["nationality"]) if row is not None and row["nationality"] in NOC_LIST else 0
             )
+
             zone = st.selectbox(
                 "Zone",
                 ZONES,
                 index=ZONES.index(row["zone"]) if row is not None and row["zone"] in ZONES else 0,
             )
-            birthdate = st.text_input(
-                "Birthdate (YYYY-MM-DD)",
-                value=row["birthdate"] if row is not None else "",
+            try:
+                bd_default = datetime.strptime(row["birthdate"], "%Y-%m-%d").date() if row is not None and row["birthdate"] else date(1990,1,1)
+            except:
+                bd_default = date(1990,1,1)
+
+            birthdate_date = st.date_input(
+                "Birthdate",
+                value=bd_default
+            )
+            birthdate = birthdate_date.isoformat()
             )
         with c3:
             fivb_id = st.text_input(
@@ -880,20 +898,28 @@ def page_referee_search():
         st.info("No referees in database yet.")
         return
 
-    refs = refs.copy()
-    refs["display"] = refs.apply(referee_display_name, axis=1)
+    st.markdown("### 1️⃣ Select category")
+    category = st.selectbox(
+        "Choose",
+        ["Referee", "Control Committee"]
+    )
+
+    refs = refs[refs["position_type"] == category].copy()
+    if refs.empty:
+        st.info("No referees in this category.")
+        return
+
+    refs["display"] = refs.apply(lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})", axis=1)
     refs = refs.sort_values(["last_name", "first_name"])
 
-    options = []
-    mapping = {}
-    for _, r in refs.iterrows():
-        label = f"{r['first_name']} {r['last_name']} ({r['nationality']})"
-        options.append(label)
-        mapping[label] = r["ref_id"]
+    st.markdown("### 2️⃣ Select referee")
 
-    sel_label = st.selectbox("Select a referee", options)
-    sel_id = mapping[sel_label]
+    options = list(refs["display"])
+    sel_label = st.selectbox("Name", options)
+    sel_id = refs[refs["display"] == sel_label].iloc[0]["ref_id"]
+
     prof = refs[refs["ref_id"] == sel_id].iloc[0]
+
 
     colL, colR = st.columns([2, 1])
 
