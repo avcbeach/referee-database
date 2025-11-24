@@ -704,7 +704,7 @@ def page_admin_referees():
 
             # Reset selection
             st.session_state.new_mode = True
-            st.session_state.selected_ref = None
+            st.session_state.selected_ref = ""
 
             st.rerun()
 
