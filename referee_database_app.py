@@ -469,13 +469,13 @@ def page_admin_referees():
         name_list = []
         mapping = {}
 
-# ------------------------------
-# SELECTION DROPDOWN (with reset)
-# ------------------------------
+    # ------------------------------
+    # SELECTION DROPDOWN (with reset)
+    # ------------------------------
     if "select_ref_key" not in st.session_state:
         st.session_state.select_ref_key = 0
 
-# If new mode → force dropdown to reset
+    # If NEW → force dropdown reset
     if st.session_state.new_mode:
         st.session_state.select_ref_key += 1
 
@@ -489,8 +489,9 @@ def page_admin_referees():
         st.session_state.new_mode = False
         st.session_state.selected_ref = mapping[sel]
 
-
-    # Determine selected row
+    # ------------------------------
+    # DETERMINE SELECTED ROW
+    # ------------------------------
     if st.session_state.new_mode:
         row = None
     elif st.session_state.selected_ref:
@@ -498,6 +499,31 @@ def page_admin_referees():
     else:
         row = None
 
+    # ---------------------------------
+    # NEW MODE → FORCE EMPTY FIELDS
+    # ---------------------------------
+    if row is None:
+        row = {
+            "ref_id": "",
+            "first_name": "",
+            "last_name": "",
+            "gender": "",
+            "nationality": "",
+            "zone": "",
+            "birthdate": "",
+            "fivb_id": "",
+            "email": "",
+            "phone": "",
+            "origin_airport": "",
+            "position_type": "",
+            "cc_role": "",
+            "ref_level": "",
+            "course_year": "",
+            "shirt_size": "",
+            "shorts_size": "",
+            "active": "True",
+            "type": ""
+        }
 
     # ===============================
     # ===== FORM: REFEREE DATA =====
