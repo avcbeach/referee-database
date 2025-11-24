@@ -495,10 +495,12 @@ def page_admin_referees():
     # ------------------------------
     # DETERMINE SELECTED ROW
     # ------------------------------
-    if st.session_state.new_mode:
+    selected_ref = st.session_state.get("selected_ref", None)
+
+    if st.session_state.get("new_mode", False):
         row = None
-    elif st.session_state.selected_ref:
-        row = refs[refs["ref_id"] == st.session_state.selected_ref].iloc[0]
+    elif selected_ref:
+        row = refs[refs["ref_id"] == selected_ref].iloc[0]
     else:
         row = None
 
