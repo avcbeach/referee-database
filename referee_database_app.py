@@ -781,7 +781,7 @@ def page_referee_search():
         st.info("No referees in this category.")
         return
 
-    # Display name
+    # Display name string
     refs["display"] = refs.apply(
         lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
         axis=1
@@ -795,62 +795,156 @@ def page_referee_search():
     colA, colB, colC = st.columns(3)
 
     with colA:
-        search_text = st.text_input("Search name", "", key="filter_search").lower().strip()
+        search_text = st.text_input(
+            "Search name",
+            "",
+            key="filter_search"
+        ).lower().strip()
 
     with colB:
-        nationality_filter = st.selectbox(
-            "Nationality",
-            ["All"] + sorted(refs["nationality"].unique()),
-            key="filter_nationality"
+        nationality_multi = st.multiselect(
+            "Nationality (multi-select)",
+            sorted(refs["nationality"].dropna().unique().tolist()),
+            key="filter_nationality_multi"
         )
 
     with colC:
-        zone_filter = st.selectbox(
-            "Zone",
-            ["All"] + sorted([z for z in refs["zone"].unique() if z]),
-            key="filter_zone"
+        zone_multi = st.multiselect(
+            "Zone (multi-select)",
+            sorted([z for z in refs["zone"].dropna().unique().tolist() if z]),
+            key="filter_zone_multi"
         )
 
-    colD, colE = st.columns(2)
+    colD, colE, colF = st.columns(3)
 
     with colD:
         gender_filter = st.selectbox(
             "Gender",
-            ["All"] + sorted([g for g in refs["gender"].unique() if g]),
+            ["All"] + sorted([g for g in refs["gender"].dropna().unique().tolist() if g]),
             key="filter_gender"
         )
 
     with colE:
+        # Type: Indoor / Beach / Both
+        type_filter = st.selectbox(
+            "Type (Indoor / Beach / Both)",
+            ["All"] + sorted([t for t in refs["type"].dropna().unique().tolist() if t]),
+            key="filter_type"
+        )
+
+    with colF:
         active_filter = st.selectbox(
-            "Active Status",
+            "Active status",
             ["All", "Active", "Inactive"],
             key="filter_active"
         )
+
+    colG, colH, colI = st.columns(3)
+
+    with colG:
+        reflevel_multi = st.multiselect(
+            "Referee level (multi-select)",
+            sorted([rl for rl in refs["ref_level"].dropna().unique().tolist() if rl]),
+            key="filter_reflevel_multi"
+        )
+
+    with colH:
+        ccrole_filter = st.selectbox(
+            "CC Role",
+            ["All"] + sorted([c for c in refs["cc_role"].dropna().unique().tolist() if c]),
+            key="filter_ccrole"
+        )
+
+    with colI:
+        courseyear_filter = st.selectbox(
+            "Course year",
+            ["All"] + sorted([cy for cy in refs["course_year"].dropna().unique().tolist() if str(cy).strip()]),
+            key="filter_courseyear"
+        )
+
+    colJ, colK, colL = st.columns(3)
+
+    with colJ:
+        shirt_filter = st.selectbox(
+            "Shirt size",
+            ["All"] + sorted([s for s in refs["shirt_size"].dropna().unique().tolist() if s]),
+            key="filter_shirt"
+        )
+
+    with colK:
+        shorts_filter = st.selectbox(
+            "Shorts size",
+            ["All"] + sorted([s for s in refs["shorts_size"].dropna().unique().tolist() if s]),
+            key="filter_shorts"
+        )
+
+    with colL:
+        airport_filter = st.text_input(
+            "Origin airport contains",
+            "",
+            key="filter_airport"
+        ).strip().lower()
 
     # ====================================
     # APPLY FILTERS
     # ====================================
     filtered = refs.copy()
 
+    # Name search
     if search_text:
         filtered = filtered[
             filtered["display"].str.lower().str.contains(search_text)
         ]
 
-    if nationality_filter != "All":
-        filtered = filtered[filtered["nationality"] == nationality_filter]
+    # Nationality multi
+    if nationality_multi:
+        filtered = filtered[filtered["nationality"].isin(nationality_multi)]
 
-    if zone_filter != "All":
-        filtered = filtered[filtered["zone"] == zone_filter]
+    # Zone multi
+    if zone_multi:
+        filtered = filtered[filtered["zone"].isin(zone_multi)]
 
+    # Gender
     if gender_filter != "All":
         filtered = filtered[filtered["gender"] == gender_filter]
 
+    # Type
+    if type_filter != "All":
+        filtered = filtered[filtered["type"] == type_filter]
+
+    # Active
     if active_filter == "Active":
         filtered = filtered[filtered["active"] == "True"]
     elif active_filter == "Inactive":
         filtered = filtered[filtered["active"] == "False"]
 
+    # Referee level multi
+    if reflevel_multi:
+        filtered = filtered[filtered["ref_level"].isin(reflevel_multi)]
+
+    # CC Role
+    if ccrole_filter != "All":
+        filtered = filtered[filtered["cc_role"] == ccrole_filter]
+
+    # Course year
+    if courseyear_filter != "All":
+        filtered = filtered[filtered["course_year"] == courseyear_filter]
+
+    # Shirt size
+    if shirt_filter != "All":
+        filtered = filtered[filtered["shirt_size"] == shirt_filter]
+
+    # Shorts size
+    if shorts_filter != "All":
+        filtered = filtered[filtered["shorts_size"] == shorts_filter]
+
+    # Origin airport contains
+    if airport_filter:
+        filtered = filtered[
+            filtered["origin_airport"].fillna("").str.lower().str.contains(airport_filter)
+        ]
+
+    # Sort by first name then last name
     filtered = filtered.sort_values(["first_name", "last_name"])
 
     # ====================================
@@ -862,23 +956,45 @@ def page_referee_search():
         st.warning("No referees match your filters.")
         return
 
+    table_cols = [
+        "first_name",
+        "last_name",
+        "nationality",
+        "zone",
+        "gender",
+        "position_type",
+        "ref_level",
+        "cc_role",
+        "course_year",
+        "fivb_id",
+        "origin_airport",
+        "shirt_size",
+        "shorts_size",
+        "type",
+        "active",
+    ]
+
+    existing_cols = [c for c in table_cols if c in filtered.columns]
+
     st.dataframe(
-        filtered[[
-            "first_name",
-            "last_name",
-            "nationality",
-            "zone",
-            "gender",
-            "active"
-        ]].rename(columns={
+        filtered[existing_cols].rename(columns={
             "first_name": "First Name",
             "last_name": "Last Name",
             "nationality": "NOC",
             "zone": "Zone",
             "gender": "Gender",
-            "active": "Active"
+            "position_type": "Position",
+            "ref_level": "Ref Level",
+            "cc_role": "CC Role",
+            "course_year": "Course Year",
+            "fivb_id": "FIVB ID",
+            "origin_airport": "Airport",
+            "shirt_size": "Shirt",
+            "shorts_size": "Shorts",
+            "type": "Type",
+            "active": "Active",
         }),
-        use_container_width=True
+        use_container_width=True,
     )
 
     # ====================================
@@ -895,7 +1011,6 @@ def page_referee_search():
 
     sel_id = filtered[filtered["display"] == sel_label].iloc[0]["ref_id"]
     prof = refs[refs["ref_id"] == sel_id].iloc[0]
-
 
     # ====================================
     # 5️⃣ PROFILE DISPLAY
@@ -936,27 +1051,40 @@ def page_referee_search():
             st.caption("No photo uploaded.")
 
         st.markdown("#### Passport (Admin only)")
-        if st.session_state.get("is_admin", False):
+        is_admin = st.session_state.get("is_admin", False)
+
+        if not is_admin:
+            st.caption("Passport is private and only visible to administrators.")
+        else:
             pass_rel = prof.get("passport_file", "")
             if isinstance(pass_rel, str) and pass_rel:
                 pass_path = os.path.join(DATA_DIR, pass_rel)
                 if os.path.exists(pass_path):
                     ext = os.path.splitext(pass_path)[1].lower()
-                    with open(pass_path, "rb") as f:
-                        data = f.read()
-                    if ext in [".jpg", ".jpeg", ".png"]:
-                        st.image(pass_path, caption="Passport", use_container_width=True)
-                    else:
-                        st.download_button(
-                            "Download Passport",
-                            data=data,
-                            file_name=os.path.basename(pass_path),
-                            mime="application/pdf",
-                        )
+                    try:
+                        with open(pass_path, "rb") as f:
+                            data = f.read()
+                        if ext in [".jpg", ".jpeg", ".png"]:
+                            st.image(pass_path, caption="Passport image", use_container_width=True)
+                        elif ext == ".pdf":
+                            st.download_button(
+                                "Download passport (PDF)",
+                                data=data,
+                                file_name=os.path.basename(pass_path),
+                                mime="application/pdf",
+                            )
+                        else:
+                            st.download_button(
+                                "Download passport file",
+                                data=data,
+                                file_name=os.path.basename(pass_path),
+                            )
+                    except Exception:
+                        st.caption("Passport path saved, but file could not be opened.")
                 else:
-                    st.caption("Passport file not found.")
-        else:
-            st.caption("Passport hidden for non-admins.")
+                    st.caption("Passport path saved, but file not found locally.")
+            else:
+                st.caption("No passport uploaded.")
 
     # ====================================
     # ✏️ EDIT REFEREE INFORMATION (INLINE)
@@ -1141,7 +1269,6 @@ def page_referee_search():
             use_container_width=True
         )
 
-
     # =========================
     # ADMIN-ONLY EVENT NOMINATIONS FOR THIS REFEREE
     # =========================
@@ -1264,7 +1391,6 @@ def page_referee_search():
                         save_assignments(assignments)
                         st.success("Nomination removed ✅")
                         st.rerun()
-
 
 # =========================
 # PAGE: ADMIN – EVENTS
