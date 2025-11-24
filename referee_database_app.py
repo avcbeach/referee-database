@@ -766,6 +766,9 @@ def page_admin_referees():
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
 
+        if "select_ref_key" not in st.session_state:
+            st.session_state.select_ref_key = 0
+
         reset_keys = [
             "first_name", "last_name", "gender", "nationality", "zone",
             "birthdate", "fivb_id", "email", "phone", "origin_airport",
@@ -780,7 +783,6 @@ def page_admin_referees():
 
         st.session_state.select_ref_key += 1
         st.rerun()
-
 
     # ======================
     # DELETE SECTION
