@@ -511,7 +511,12 @@ def page_admin_referees():
             except:
                 bd_default = date(1990, 1, 1)
 
-            birthdate = st.date_input("Birthdate", value=bd_default).isoformat()
+            birthdate = st.date_input(
+                "Birthdate",
+                value=bd_default,
+                min_value=date(1900, 1, 1),
+                max_value=date(2100, 12, 31)
+            ).isoformat()
 
         with c3:
             fivb_id = st.text_input("FIVB ID", value=row["fivb_id"] if row is not None else "")
