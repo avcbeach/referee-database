@@ -638,133 +638,133 @@ def page_admin_referees():
 
         submitted = st.form_submit_button("💾 Save")
 
-# ======================
-# SAVE LOGIC (REWRITTEN CLEAN)
-# ======================
-if submitted:
+    # ======================
+    # SAVE LOGIC (REWRITTEN CLEAN)
+    # ======================
+    if submitted:
 
-    if not first_name.strip() and not last_name.strip():
-        st.error("Please enter at least first name or last name.")
-        return
-
-    ensure_dirs()
-
-    # --------------------------
-    # NEW REFEREE
-    # --------------------------
-    if st.session_state.new_mode:
-
-        ref_id = new_id()
-        photo_path = ""
-        passport_path = ""
-
-        # Save photo
-        if photo_file is not None:
-            ext = os.path.splitext(photo_file.name)[1]
-            fname = f"{ref_id}{ext}"
-            photo_path = os.path.join("photos", fname)
-            with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
-                f.write(photo_file.getbuffer())
-
-        # Save passport
-        if passport_file is not None:
-            ext = os.path.splitext(passport_file.name)[1]
-            fname = f"{ref_id}{ext}"
-            passport_path = os.path.join("passports", fname)
-            with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
-                f.write(passport_file.getbuffer())
-
-        new_row = pd.DataFrame([{
-            "ref_id": ref_id,
-            "first_name": first_name.strip(),
-            "last_name": last_name.strip(),
-            "gender": gender,
-            "nationality": nationality.strip(),
-            "zone": zone,
-            "birthdate": birthdate,
-            "fivb_id": fivb_id.strip(),
-            "email": email.strip(),
-            "phone": phone.strip(),
-            "origin_airport": origin_airport.strip(),
-            "position_type": position_type,
-            "cc_role": cc_role,
-            "ref_level": ref_level,
-            "course_year": course_year.strip(),
-            "photo_file": photo_path,
-            "passport_file": passport_path,
-            "shirt_size": shirt_size,
-            "shorts_size": shorts_size,
-            "active": str(active),
-            "type": ref_type,
-        }])
-
-        refs = pd.concat([refs, new_row], ignore_index=True)
-        save_referees(refs)
-
-    # --------------------------
-    # UPDATE REFEREE
-    # --------------------------
-    else:
-        match = refs[refs["ref_id"] == row["ref_id"]]
-        if match.empty:
-            st.error("Error: Could not find referee to update.")
+        if not first_name.strip() and not last_name.strip():
+            st.error("Please enter at least first name or last name.")
             return
 
-        idx = match.index[0]
+        ensure_dirs()
 
-        # Photo
-        photo_path = refs.loc[idx, "photo_file"]
-        if photo_file is not None:
-            ext = os.path.splitext(photo_file.name)[1]
-            fname = f"{row['ref_id']}{ext}"
-            photo_path = os.path.join("photos", fname)
-            with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
-                f.write(photo_file.getbuffer())
+        # --------------------------
+        # NEW REFEREE
+        # --------------------------
+        if st.session_state.new_mode:
 
-        # Passport
-        passport_path = refs.loc[idx, "passport_file"]
-        if passport_file is not None:
-            ext = os.path.splitext(passport_file.name)[1]
-            fname = f"{row['ref_id']}{ext}"
-            passport_path = os.path.join("passports", fname)
-            with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
-                f.write(passport_file.getbuffer())
+            ref_id = new_id()
+            photo_path = ""
+            passport_path = ""
 
-        # Update row
-        refs.loc[idx] = {
-            "ref_id": row["ref_id"],
-            "first_name": first_name.strip(),
-            "last_name": last_name.strip(),
-            "gender": gender,
-            "nationality": nationality.strip(),
-            "zone": zone,
-            "birthdate": birthdate,
-            "fivb_id": fivb_id.strip(),
-            "email": email.strip(),
-            "phone": phone.strip(),
-            "origin_airport": origin_airport.strip(),
-            "position_type": position_type,
-            "cc_role": cc_role,
-            "ref_level": ref_level,
-            "course_year": course_year.strip(),
-            "photo_file": photo_path,
-            "passport_file": passport_path,
-            "shirt_size": shirt_size,
-            "shorts_size": shorts_size,
-            "active": str(active),
-            "type": ref_type,
-        }
+            # Save photo
+            if photo_file is not None:
+                ext = os.path.splitext(photo_file.name)[1]
+                fname = f"{ref_id}{ext}"
+                photo_path = os.path.join("photos", fname)
+                with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
+                    f.write(photo_file.getbuffer())
 
-        save_referees(refs)
+            # Save passport
+            if passport_file is not None:
+                ext = os.path.splitext(passport_file.name)[1]
+                fname = f"{ref_id}{ext}"
+                passport_path = os.path.join("passports", fname)
+                with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
+                    f.write(passport_file.getbuffer())
 
-    # --------------------------
-    # CLEAN RESET AFTER SAVE
-    # --------------------------
-    st.session_state.new_mode = True
-    st.session_state.selected_ref = None
-    st.session_state.ref_form_key += 1
-    st.success("Saved ✔")
-    st.rerun()
+            new_row = pd.DataFrame([{
+                "ref_id": ref_id,
+                "first_name": first_name.strip(),
+                "last_name": last_name.strip(),
+                "gender": gender,
+                "nationality": nationality.strip(),
+                "zone": zone,
+                "birthdate": birthdate,
+                "fivb_id": fivb_id.strip(),
+                "email": email.strip(),
+                "phone": phone.strip(),
+                "origin_airport": origin_airport.strip(),
+                "position_type": position_type,
+                "cc_role": cc_role,
+                "ref_level": ref_level,
+                "course_year": course_year.strip(),
+                "photo_file": photo_path,
+                "passport_file": passport_path,
+                "shirt_size": shirt_size,
+                "shorts_size": shorts_size,
+                "active": str(active),
+                "type": ref_type,
+            }])
+
+            refs = pd.concat([refs, new_row], ignore_index=True)
+            save_referees(refs)
+
+        # --------------------------
+        # UPDATE REFEREE
+        # --------------------------
+        else:
+
+            match = refs[refs["ref_id"] == row["ref_id"]]
+            if match.empty:
+                st.error("Error: Could not find referee to update.")
+                return
+
+            idx = match.index[0]
+
+            photo_path = refs.loc[idx, "photo_file"]
+            passport_path = refs.loc[idx, "passport_file"]
+
+            if photo_file is not None:
+                ext = os.path.splitext(photo_file.name)[1]
+                fname = f"{row['ref_id']}{ext}"
+                photo_path = os.path.join("photos", fname)
+                with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
+                    f.write(photo_file.getbuffer())
+
+            if passport_file is not None:
+                ext = os.path.splitext(passport_file.name)[1]
+                fname = f"{row['ref_id']}{ext}"
+                passport_path = os.path.join("passports", fname)
+                with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
+                    f.write(passport_file.getbuffer())
+
+            refs.loc[idx] = {
+                "ref_id": row["ref_id"],
+                "first_name": first_name.strip(),
+                "last_name": last_name.strip(),
+                "gender": gender,
+                "nationality": nationality.strip(),
+                "zone": zone,
+                "birthdate": birthdate,
+                "fivb_id": fivb_id.strip(),
+                "email": email.strip(),
+                "phone": phone.strip(),
+                "origin_airport": origin_airport.strip(),
+                "position_type": position_type,
+                "cc_role": cc_role,
+                "ref_level": ref_level,
+                "course_year": course_year.strip(),
+                "photo_file": photo_path,
+                "passport_file": passport_path,
+                "shirt_size": shirt_size,
+                "shorts_size": shorts_size,
+                "active": str(active),
+                "type": ref_type,
+            }
+
+            save_referees(refs)
+
+        # --------------------------
+        # CLEAN RESET AFTER SAVE
+        # --------------------------
+        st.session_state.new_mode = True
+        st.session_state.selected_ref = None
+        st.session_state.ref_form_key += 1
+        st.success("Saved ✔")
+        st.rerun()
+
 
     # ======================
     # LIST REFS BY CATEGORY
