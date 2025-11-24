@@ -712,6 +712,15 @@ def page_admin_referees():
             refs = pd.concat([refs, new_row], ignore_index=True)
             save_referees(refs)
             st.success("Referee/official added   ")
+            
+            # 🔥 SUPER HARD RESET (the nuclear solution)
+            keep = ["is_admin"]
+
+            for key in list(st.session_state.keys()):
+                if key not in keep:
+                    del st.session_state[key]
+
+            st.rerun()
 
         else:
             # UPDATE — FIXED (safe index lookup)
