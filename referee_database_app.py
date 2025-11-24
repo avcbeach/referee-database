@@ -704,10 +704,10 @@ def page_admin_referees():
 
             # Reset selection
             st.session_state.new_mode = True
-            st.session_state.selected_ref = ""
+            st.session_state.selected_ref = None
 
             st.rerun()
-
+                     
         else:
             # UPDATE — FIXED (safe index lookup)
             match = refs[refs["ref_id"] == row["ref_id"]]
@@ -757,16 +757,18 @@ def page_admin_referees():
             refs.loc[idx, "shorts_size"] = shorts_size
             refs.loc[idx, "active"] = str(active)
             refs.loc[idx, "type"] = ref_type
-
+            
             save_referees(refs)
-            st.success("Referee/official updated")
+            st.success("Referee/official added")
 
-        # RESET FORM AFTER SAVE
-        st.session_state.new_mode = True
-        st.session_state.selected_ref = None
-        st.rerun()
+            if "ref_form_key" not in st.session_state:
+                st.session_state.ref_form_key = 0
+            st.session_state.ref_form_key += 1
 
+            st.session_state.new_mode = True
+            st.session_state.selected_ref = None
 
+            st.rerun()
 
     # ======================
     # DELETE SECTION
