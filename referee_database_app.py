@@ -469,14 +469,26 @@ def page_admin_referees():
         name_list = []
         mapping = {}
 
-    # ------------------------------
-    # SELECTION DROPDOWN
-    # ------------------------------
-    sel = st.selectbox("Select referee/official", [""] + name_list)
+# ------------------------------
+# SELECTION DROPDOWN (with reset)
+# ------------------------------
+    if "select_ref_key" not in st.session_state:
+        st.session_state.select_ref_key = 0
+
+# If new mode → force dropdown to reset
+    if st.session_state.new_mode:
+        st.session_state.select_ref_key += 1
+
+    sel = st.selectbox(
+        "Select referee/official",
+        [""] + name_list,
+        key=f"ref_select_{st.session_state.select_ref_key}"
+    )
 
     if sel in mapping:
         st.session_state.new_mode = False
         st.session_state.selected_ref = mapping[sel]
+
 
     # Determine selected row
     if st.session_state.new_mode:
