@@ -446,27 +446,32 @@ def page_admin_referees():
         st.rerun()
 
     # ------------------------------
-    # 📥 IMPORT FROM EXCEL
+    # 📥 IMPORT FROM EXCEL (SAFE MODE)
     # ------------------------------
     st.markdown("### Import Referees from Excel")
 
-    excel_file = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"], key="import_excel")
+    uploaded_excel = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"], key="import_excel")
 
-    if excel_file is not None:
-        try:
-            df_import = pd.read_excel(excel_file)
+    if uploaded_excel is not None:
+        st.info("Excel file loaded. Click the button below to import.")
 
-            required_cols = [
-                "first_name", "last_name", "gender", "nationality", "zone",
-                "birthdate", "fivb_id", "email", "phone", "origin_airport",
-                "position_type", "cc_role", "ref_level", "course_year",
-                "shirt_size", "shorts_size", "active", "type"
-            ]
+        if st.button("📥 Import Now"):
 
-            missing = [c for c in required_cols if c not in df_import.columns]
-            if missing:
-                st.error(f"Missing required columns: {', '.join(missing)}")
-            else:
+            try:
+                df_import = pd.read_excel(uploaded_excel)
+
+                required_cols = [
+                    "first_name", "last_name", "gender", "nationality", "zone",
+                    "birthdate", "fivb_id", "email", "phone", "origin_airport",
+                    "position_type", "cc_role", "ref_level", "course_year",
+                    "shirt_size", "shorts_size", "active", "type"
+                ]
+
+                missing = [c for c in required_cols if c not in df_import.columns]
+                if missing:
+                    st.error(f"Missing required columns: {', '.join(missing)}")
+                    st.stop()
+
                 refs = load_referees()
                 imported_count = 0
 
@@ -508,8 +513,8 @@ def page_admin_referees():
                 st.session_state.ref_form_key += 1
                 st.rerun()
 
-        except Exception as e:
-            st.error(f"Import failed: {e}")
+            except Exception as e:
+                st.error(f"Import failed: {e}")
 
 
     # ------------------------------
