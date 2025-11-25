@@ -1232,6 +1232,7 @@ def page_referee_search():
             )
 
             birthdate = st.text_input("Birthdate (YYYY-MM-DD)", prof["birthdate"])
+            fivb_id = st.text_input("FIVB ID", value=row["fivb_id"])            
             email = st.text_input("Email", prof["email"])
             phone = st.text_input("Phone", prof["phone"])
 
