@@ -445,71 +445,71 @@ def page_admin_referees():
         st.session_state.ref_form_key += 1     # 💥 FORCE NEW EMPTY FORM
         st.rerun()
 
-        # ------------------------------
-        # 📥 IMPORT FROM EXCEL
-        # ------------------------------
-        st.markdown("### Import Referees from Excel")
+    # ------------------------------
+    # 📥 IMPORT FROM EXCEL
+    # ------------------------------
+    st.markdown("### Import Referees from Excel")
 
-        excel_file = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"], key="import_excel")
+    excel_file = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"], key="import_excel")
 
-        if excel_file is not None:
-                try:
-                        df_import = pd.read_excel(excel_file)
+    if excel_file is not None:
+        try:
+            df_import = pd.read_excel(excel_file)
 
-                        required_cols = [
-                                "first_name", "last_name", "gender", "nationality", "zone",
-                                "birthdate", "fivb_id", "email", "phone", "origin_airport",
-                                "position_type", "cc_role", "ref_level", "course_year",
-                                "shirt_size", "shorts_size", "active", "type"
-                        ]
+            required_cols = [
+                "first_name", "last_name", "gender", "nationality", "zone",
+                "birthdate", "fivb_id", "email", "phone", "origin_airport",
+                "position_type", "cc_role", "ref_level", "course_year",
+                "shirt_size", "shorts_size", "active", "type"
+            ]
 
-                        missing = [c for c in required_cols if c not in df_import.columns]
-                        if missing:
-                                st.error(f"Missing required columns: {', '.join(missing)}")
-                        else:
-                                refs = load_referees()
-                                imported_count = 0
+            missing = [c for c in required_cols if c not in df_import.columns]
+            if missing:
+                st.error(f"Missing required columns: {', '.join(missing)}")
+            else:
+                refs = load_referees()
+                imported_count = 0
 
-                                for _, r in df_import.iterrows():
-                                        ref_id = new_id()
+                for _, r in df_import.iterrows():
+                    ref_id = new_id()
 
-                                        new_row = {
-                                                "ref_id": ref_id,
-                                                "first_name": str(r.get("first_name", "")).strip(),
-                                                "last_name": str(r.get("last_name", "")).strip(),
-                                                "gender": r.get("gender", ""),
-                                                "nationality": r.get("nationality", ""),
-                                                "zone": r.get("zone", ""),
-                                                "birthdate": str(r.get("birthdate", "")),
-                                                "fivb_id": str(r.get("fivb_id", "")),
-                                                "email": str(r.get("email", "")),
-                                                "phone": str(r.get("phone", "")),
-                                                "origin_airport": str(r.get("origin_airport", "")),
-                                                "position_type": str(r.get("position_type", "")),
-                                                "cc_role": str(r.get("cc_role", "")),
-                                                "ref_level": str(r.get("ref_level", "")),
-                                                "course_year": str(r.get("course_year", "")),
-                                                "photo_file": "",
-                                                "passport_file": "",
-                                                "shirt_size": str(r.get("shirt_size", "")),
-                                                "shorts_size": str(r.get("shorts_size", "")),
-                                                "active": str(r.get("active", True)),
-                                                "type": str(r.get("type", "")),
-                                        }
+                    new_row = {
+                        "ref_id": ref_id,
+                        "first_name": str(r.get("first_name", "")).strip(),
+                        "last_name": str(r.get("last_name", "")).strip(),
+                        "gender": r.get("gender", ""),
+                        "nationality": r.get("nationality", ""),
+                        "zone": r.get("zone", ""),
+                        "birthdate": str(r.get("birthdate", "")),
+                        "fivb_id": str(r.get("fivb_id", "")),
+                        "email": str(r.get("email", "")),
+                        "phone": str(r.get("phone", "")),
+                        "origin_airport": str(r.get("origin_airport", "")),
+                        "position_type": str(r.get("position_type", "")),
+                        "cc_role": str(r.get("cc_role", "")),
+                        "ref_level": str(r.get("ref_level", "")),
+                        "course_year": str(r.get("course_year", "")),
+                        "photo_file": "",
+                        "passport_file": "",
+                        "shirt_size": str(r.get("shirt_size", "")),
+                        "shorts_size": str(r.get("shorts_size", "")),
+                        "active": str(r.get("active", True)),
+                        "type": str(r.get("type", "")),
+                    }
 
-                                        refs = pd.concat([refs, pd.DataFrame([new_row])], ignore_index=True)
-                                        imported_count += 1
+                    refs = pd.concat([refs, pd.DataFrame([new_row])], ignore_index=True)
+                    imported_count += 1
 
-                                save_referees(refs)
-                                st.success(f"Successfully imported {imported_count} referees ✔")
+                save_referees(refs)
+                st.success(f"Successfully imported {imported_count} referees ✔")
 
-                                st.session_state.new_mode = True
-                                st.session_state.selected_ref = None
-                                st.session_state.ref_form_key += 1
-                                st.rerun()
+                st.session_state.new_mode = True
+                st.session_state.selected_ref = None
+                st.session_state.ref_form_key += 1
+                st.rerun()
 
-                except Exception as e:
-                        st.error(f"Import failed: {e}")
+        except Exception as e:
+            st.error(f"Import failed: {e}")
 
 
     # ------------------------------
