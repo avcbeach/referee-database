@@ -1232,7 +1232,7 @@ def page_referee_search():
             )
 
             birthdate = st.text_input("Birthdate (YYYY-MM-DD)", prof["birthdate"])
-            fivb_id = st.text_input("FIVB ID", value=row["fivb_id"])            
+            fivb_id = st.text_input("FIVB ID", value=prof["fivb_id"])         
             email = st.text_input("Email", prof["email"])
             phone = st.text_input("Phone", prof["phone"])
 
@@ -1319,6 +1319,7 @@ def page_referee_search():
         refs_all.loc[idx, "nationality"] = nationality
         refs_all.loc[idx, "zone"] = zone
         refs_all.loc[idx, "birthdate"] = birthdate.strip()
+        refs_all.loc[idx, "fivb_id"] = fivb_id.strip()
         refs_all.loc[idx, "email"] = email.strip()
         refs_all.loc[idx, "phone"] = phone.strip()
         refs_all.loc[idx, "origin_airport"] = origin_airport.strip()
