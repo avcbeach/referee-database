@@ -3,7 +3,6 @@ ref_id,first_name,last_name,gender,nationality,zone,birthdate,fivb_id,email,phon
 b9c702c5-8d30-470a-b1af-68215585b1da,Aprelius,Balebu,Male,INA,SEA,4/3/1961,,a_lius@yahoo.com,,PLW,Control Committee,Referee Coach,,,photos/b9c702c5-8d30-470a-b1af-68215585b1da.jpeg,passports/b9c702c5-8d30-470a-b1af-68215585b1da.jpeg,TRUE,Beach,Aprelius Balebu - INA,XL,XL
 c79a21ba-16d2-41d2-a1ae-a69ab672f570,Benqiang,Wang,Male,CHN,E,1/20/1989,164033,,,,Referee,,AVC Candidate,,,,TRUE,Beach,Benqiang Wang - CHN,,
 faba489f-690f-46bc-80e6-27d0670524cc,"Chi Ming, Thomas",Chang,Male,HKG,E,11/19/1960,400193,thomaschang1941@yahoo.com.hk,,HKG,Control Committee,Both,,,photos/faba489f-690f-46bc-80e6-27d0670524cc.jpg,passports/faba489f-690f-46bc-80e6-27d0670524cc.jpg,TRUE,Both,"Chi Ming, Thomas Chang - HKG",L,L
-1aef5764-2d36-4e9f-97e4-b2ab06a4a92d,"Yu Pong, Christopher",Law,Male,HKG,E,1980-10-18,154941,djchris1018@yahoo.com.hk,,HKG,Referee,,AVC International,,,,True,Beach,,,
 6942d769-93c8-4f5c-93ed-b3ee743f37a7,Chung,Ng,Male,HKG,E,1973-01-02,151562,bandng@yahoo.com.hk,,,Referee,,AVC International,,,,True,Beach,Chung Ng - HKG,,
 dded5175-2ec1-4941-b357-9ebf69eeeb66,Dalu,Qi,Male,CHN,E,,158048,daluzy2007@163.com,,,Referee,,AVC Candidate,,,,TRUE,Beach,Dalu Qi - CHN,,
 b0c785e7-6e7e-4327-a809-16f7a9eb6580,Debbie,Masauvakalo,Female,VAN,O,,,,,,Control Committee,Technical Delegate,,,,,TRUE,Beach,Debbie Masauvakalo - VAN,M,M
@@ -45,5 +44,7 @@ ceb76242-06b4-4861-9a64-c93fc991bd2e,Xianghong,Shen,Female,CHN,E,3/23/1977,15127
 2ea848f3-c34e-4592-a8e3-21dc42980b02,Yanzai,Chen,Male,CHN,E,2/6/1986,158077,chenyanzai88@163.com,,,Referee,,AVC Candidate,,,,True,Beach,Yanzai Chen - CHN,,
 cd6ef713-4f09-4a14-8a0e-773afbf384e4,Ying,Chen,Female,CHN,E,12/28/1984,164006,,,,Referee,,AVC Candidate,,,,TRUE,Beach,Ying Chen - CHN,,
 1672ac70-6784-44be-b921-b6cd6bc5f1e5,Yong,Liu,Male,CHN,E,1/8/1979,151975,liuyong790108@outlook.com,,,Referee,,FIVB,,,,TRUE,Beach,Yong Liu - CHN,3XL,
+1aef5764-2d36-4e9f-97e4-b2ab06a4a92d,"Yu Pong, Christopher",Law,Male,HKG,E,1980-10-18,154941,djchris1018@yahoo.com.hk,,HKG,Referee,,AVC International,,,,True,Beach,"Yu Pong, Christopher Law - HKG",,
 b992a6b3-86a2-4473-8f48-2e74e2d492bc,Yun,Wei,Female,CHN,E,8/14/1971,151550,weiyun9578@163.com,,,Referee,,AVC International,,,,TRUE,Beach,Yun Wei - CHN,3XL,3XL
 4924dc6c-46d7-419a-b2ad-63ffe68bd7b2,Zhe,Zhang,Male,CHN,E,4/1/1977,151557,zhe_7741@163.com,,,Referee,,AVC International,,,,TRUE,Beach,Zhe Zhang - CHN,L,
+8127615e-5db3-481e-8680-51d2342bb772,Ka Chun,Lai,Male,HKG,E,1982-05-04,154940,dick8254@yahoo.com.hk,,HKG,Referee,,FIVB,,photos/8127615e-5db3-481e-8680-51d2342bb772.jpg,passports/8127615e-5db3-481e-8680-51d2342bb772.jpg,True,Beach,,,
