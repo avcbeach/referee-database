@@ -1235,6 +1235,14 @@ def page_referee_search():
             email = st.text_input("Email", prof["email"])
             phone = st.text_input("Phone", prof["phone"])
 
+            photo_upload = st.file_uploader(
+                "Upload Photo ID (optional)", type=["jpg", "jpeg", "png"]
+            )
+
+            passport_upload = st.file_uploader(
+                "Upload Passport (optional)", type=["pdf", "jpg", "jpeg", "png"]
+            )
+
         with c2:
             origin_airport = st.text_input("Origin airport", prof["origin_airport"])
 
@@ -1283,6 +1291,27 @@ def page_referee_search():
         refs_all = load_referees()
         idx = refs_all[refs_all["ref_id"] == prof["ref_id"]].index[0]
 
+        # Keep old values unless new file uploaded
+        photo_path = refs_all.loc[idx, "photo_file"]
+        passport_path = refs_all.loc[idx, "passport_file"]
+
+        # Save new photo
+        if photo_upload is not None:
+            ext = os.path.splitext(photo_upload.name)[1]
+            new_photo_file = f"{prof['ref_id']}{ext}"
+            photo_path = os.path.join("photos", new_photo_file)
+            with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
+                f.write(photo_upload.getbuffer())
+
+        # Save new passport
+        if passport_upload is not None:
+            ext = os.path.splitext(passport_upload.name)[1]
+            new_pass_file = f"{prof['ref_id']}{ext}"
+            passport_path = os.path.join("passports", new_pass_file)
+            with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
+                f.write(passport_upload.getbuffer())
+
+        # Save all fields
         refs_all.loc[idx, "first_name"] = fn.strip()
         refs_all.loc[idx, "last_name"] = ln.strip()
         refs_all.loc[idx, "gender"] = gender
@@ -1299,6 +1328,8 @@ def page_referee_search():
         refs_all.loc[idx, "shirt_size"] = shirt_size
         refs_all.loc[idx, "shorts_size"] = shorts_size
         refs_all.loc[idx, "active"] = str(active)
+        refs_all.loc[idx, "photo_file"] = photo_path
+        refs_all.loc[idx, "passport_file"] = passport_path
 
         save_referees(refs_all)
         st.success("Referee updated successfully! 🔄")
