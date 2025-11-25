@@ -620,9 +620,9 @@ def page_admin_referees():
         with c2:
             NOC_LIST = sorted([
                "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
-               "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR","KOR","KUW","LAO","LIB",
+               "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KSA","KIR","KOR","KUW","LAO","LBN",
                "MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU","NMI","NRU","NZL","OMA","PAK","PAU",
-               "PHI","PLE","PNG","PRK","QAT","SAM","SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM",
+               "PHI","PLE","PLY","PNG","PRK","QAT","SAM","SGP","SOL","SRI","SYR","TGA","THA","TJK","TKM",
                "TLS","TPE","TUV","UAE","UZB","VAN","VIE","YEM"
             ])
 
@@ -1212,12 +1212,11 @@ def page_referee_search():
 
             # Nationality list sorted
             NOC_LIST = sorted([
-                "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ",
-                "FSM","GUM","HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KIR",
-                "KOR","KUW","LAO","LIB","MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU",
-                "NMI","NRU","NZL","OMA","PAK","PAU","PHI","PLE","PNG","PRK","QAT","SAM",
-                "SIN","SOL","SRI","SYR","TGA","THA","TJK","TKM","TLS","TPE","TUV","UAE",
-                "UZB","VAN","VIE","YEM"
+               "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
+               "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KSA","KIR","KOR","KUW","LAO","LBN",
+               "MAC","MAS","MDV","MGL","MSH","MYA","NEP","NIU","NMI","NRU","NZL","OMA","PAK","PAU",
+               "PHI","PLE","PLY","PNG","PRK","QAT","SAM","SGP","SOL","SRI","SYR","TGA","THA","TJK","TKM",
+               "TLS","TPE","TUV","UAE","UZB","VAN","VIE","YEM"
             ])
 
             nationality = st.selectbox(
