@@ -767,52 +767,52 @@ def page_admin_referees():
             refs = pd.concat([refs, new_row], ignore_index=True)
             save_referees(refs)
 
-        # ======================
-        # DELETE REFEREE (INLINE)
-        # ======================
-        if not st.session_state.new_mode and row and row["ref_id"] != "":
-            st.markdown("---")
-            st.subheader("🗑️ Delete This Referee")
+    # ======================
+    # DELETE REFEREE (INLINE)
+    # ======================
+    if not st.session_state.new_mode and row and row["ref_id"] != "":
+        st.markdown("---")
+        st.subheader("🗑️ Delete This Referee")
 
-            ref_name = f"{row['first_name']} {row['last_name']} ({row['nationality']})"
+        ref_name = f"{row['first_name']} {row['last_name']} ({row['nationality']})"
 
-            st.warning(
-                f"You are about to permanently delete **{ref_name}**.\n\n"
-                "This will remove:\n"
-                "- Referee personal details\n"
-                "- Availability\n"
-                "- Assignments\n\n"
-                "**This action cannot be undone.**"
-            )
+        st.warning(
+            f"You are about to permanently delete **{ref_name}**.\n\n"
+            "This will remove:\n"
+            "- Referee personal details\n"
+            "- Availability\n"
+            "- Assignments\n\n"
+            "**This action cannot be undone.**"
+        )
 
-            confirm_del = st.checkbox("Yes, delete permanently.")
+        confirm_del = st.checkbox("Yes, delete permanently.")
 
-            if st.button("🗑️ DELETE REFEREE NOW"):
-                if confirm_del:
-                    refs_all = load_referees()
-                    refs_all = refs_all[refs_all["ref_id"] != row["ref_id"]]
-                    save_referees(refs_all)
+        if st.button("🗑️ DELETE REFEREE NOW"):
+            if confirm_del:
+                refs_all = load_referees()
+                refs_all = refs_all[refs_all["ref_id"] != row["ref_id"]]
+                save_referees(refs_all)
 
-                    # Delete photo
-                    if row.get("photo_file"):
-                        fp = os.path.join(DATA_DIR, row["photo_file"])
-                        if os.path.exists(fp):
-                            os.remove(fp)
+                # Delete photo
+                if row.get("photo_file"):
+                    fp = os.path.join(DATA_DIR, row["photo_file"])
+                    if os.path.exists(fp):
+                        os.remove(fp)
 
-                    # Delete passport
-                    if row.get("passport_file"):
-                        fp = os.path.join(DATA_DIR, row["passport_file"])
-                        if os.path.exists(fp):
-                            os.remove(fp)
+                # Delete passport
+                if row.get("passport_file"):
+                    fp = os.path.join(DATA_DIR, row["passport_file"])
+                    if os.path.exists(fp):
+                        os.remove(fp)
 
-                    st.success("Referee deleted successfully! 🗑️")
+                st.success("Referee deleted successfully! 🗑️")
 
-                    st.session_state.selected_ref = None
-                    st.session_state.new_mode = True
-                    st.session_state.ref_form_key += 1
-                    st.rerun()
-                else:
-                    st.error("Please tick the confirmation checkbox.")
+                st.session_state.selected_ref = None
+                st.session_state.new_mode = True
+                st.session_state.ref_form_key += 1
+                st.rerun()
+            else:
+                st.error("Please tick the confirmation checkbox.")
 
 
         # --------------------------
