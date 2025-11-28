@@ -3,9 +3,47 @@ import pandas as pd
 from datetime import date, datetime
 import os
 import uuid
+import io
 import base64
 import requests
-import io
+
+GITHUB_REPO = "avcbeach/referee-database"
+GITHUB_BRANCH = "main"
+
+def upload_to_github(file_bytes, upload_path, token):
+    """
+    Upload file to GitHub repo via REST API.
+    upload_path example: data/photos/abc.jpg
+    """
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{upload_path}"
+
+    # read existing file sha (needed if overwrite)
+    get_res = requests.get(url, headers={"Authorization": f"token {token}"})
+    sha = get_res.json().get("sha", None)
+
+    content = base64.b64encode(file_bytes).decode("utf-8")
+
+    payload = {
+        "message": f"Upload file {upload_path}",
+        "content": content,
+        "branch": GITHUB_BRANCH
+    }
+    if sha:
+        payload["sha"] = sha  # overwrite if exists
+
+    res = requests.put(
+        url,
+        headers={"Authorization": f"token {token}"},
+        json=payload
+    )
+
+    if res.status_code not in [200, 201]:
+        raise Exception(f"GitHub upload failed: {res.text}")
+
+    # Return RAW URL
+    raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{upload_path}"
+    return raw_url
+
 
 # =========================
 # CONFIG
@@ -405,6 +443,8 @@ def require_admin():
 # PAGE: ADMIN – REFEREES
 # =========================
 
+GH_TOKEN = st.secrets["GH_TOKEN"]
+
 def referee_display_name(row):
     fn = str(row.get("first_name", "")).strip()
     ln = str(row.get("last_name", "")).strip()
@@ -724,21 +764,17 @@ def page_admin_referees():
             photo_path = ""
             passport_path = ""
 
-            # Save photo
+            # Save photo to GitHub
             if photo_file is not None:
                 ext = os.path.splitext(photo_file.name)[1]
-                fname = f"{ref_id}{ext}"
-                photo_path = os.path.join("photos", fname)
-                with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
-                    f.write(photo_file.getbuffer())
+                github_path = f"data/photos/{ref_id}{ext}"
+                photo_path = upload_to_github(photo_file.getbuffer(), github_path, GH_TOKEN)
 
-            # Save passport
+            # Save passport to GitHub
             if passport_file is not None:
                 ext = os.path.splitext(passport_file.name)[1]
-                fname = f"{ref_id}{ext}"
-                passport_path = os.path.join("passports", fname)
-                with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
-                    f.write(passport_file.getbuffer())
+                github_path = f"data/passports/{ref_id}{ext}"
+                passport_path = upload_to_github(passport_file.getbuffer(), github_path, GH_TOKEN)
 
             new_row = pd.DataFrame([{
                 "ref_id": ref_id,
@@ -782,19 +818,18 @@ def page_admin_referees():
             photo_path = refs.loc[idx, "photo_file"]
             passport_path = refs.loc[idx, "passport_file"]
 
+            # UPDATE PHOTO
             if photo_file is not None:
                 ext = os.path.splitext(photo_file.name)[1]
-                fname = f"{row['ref_id']}{ext}"
-                photo_path = os.path.join("photos", fname)
-                with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
-                    f.write(photo_file.getbuffer())
+                github_path = f"data/photos/{row['ref_id']}{ext}"
+                photo_path = upload_to_github(photo_file.getbuffer(), github_path, GH_TOKEN)
 
+            # UPDATE PASSPORT
             if passport_file is not None:
                 ext = os.path.splitext(passport_file.name)[1]
-                fname = f"{row['ref_id']}{ext}"
-                passport_path = os.path.join("passports", fname)
-                with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
-                    f.write(passport_file.getbuffer())
+                github_path = f"data/passports/{row['ref_id']}{ext}"
+                passport_path = upload_to_github(passport_file.getbuffer(), github_path, GH_TOKEN)
+
 
             refs.loc[idx] = {
                 "ref_id": row["ref_id"],
