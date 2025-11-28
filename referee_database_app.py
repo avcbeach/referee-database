@@ -7,42 +7,70 @@ import io
 import base64
 import requests
 
+# =========================
+# GITHUB CONFIG FOR MEDIA
+# =========================
+
 GITHUB_REPO = "avcbeach/referee-database"
 GITHUB_BRANCH = "main"
 
+
 def upload_to_github(file_bytes, upload_path, token):
     """
-    Upload file to GitHub repo via REST API.
-    upload_path example: data/photos/abc.jpg
+    Upload binary file to GitHub repo via REST API.
+    upload_path example (repo-relative & local path): "data/photos/<ref_id>.jpg"
+
+    - Uploads to GitHub
+    - Writes the same file to local path (so Streamlit can read from disk)
+    - Returns *internal stored path* WITHOUT "data/" prefix, e.g. "photos/<ref_id>.jpg"
     """
+    # GitHub REST API URL
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{upload_path}"
 
-    # read existing file sha (needed if overwrite)
-    get_res = requests.get(url, headers={"Authorization": f"token {token}"})
-    sha = get_res.json().get("sha", None)
+    # Check if file exists to get SHA
+    headers = {"Authorization": f"token {token}"}
+    try:
+        get_res = requests.get(url, headers=headers, timeout=10)
+        if get_res.status_code == 200:
+            sha = get_res.json().get("sha")
+        else:
+            sha = None
+    except Exception:
+        sha = None
 
-    content = base64.b64encode(file_bytes).decode("utf-8")
+    content_b64 = base64.b64encode(file_bytes).decode("utf-8")
 
     payload = {
         "message": f"Upload file {upload_path}",
-        "content": content,
-        "branch": GITHUB_BRANCH
+        "content": content_b64,
+        "branch": GITHUB_BRANCH,
     }
     if sha:
         payload["sha"] = sha  # overwrite if exists
 
-    res = requests.put(
-        url,
-        headers={"Authorization": f"token {token}"},
-        json=payload
-    )
+    try:
+        res = requests.put(url, headers=headers, json=payload, timeout=15)
+        if res.status_code not in (200, 201):
+            # If upload fails, we still keep local copy
+            pass
+    except Exception:
+        # Ignore GitHub errors for now; local file still used
+        pass
 
-    if res.status_code not in [200, 201]:
-        raise Exception(f"GitHub upload failed: {res.text}")
+    # Write local file (so Streamlit can open from disk)
+    local_path = upload_path.replace("\\", "/")
+    # Ensure parent dir exists
+    try:
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(file_bytes)
+    except Exception:
+        pass
 
-    # Return RAW URL
-    raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{upload_path}"
-    return raw_url
+    # Return internal stored path w/o leading "data/"
+    if local_path.startswith("data/"):
+        return local_path[len("data/") :]
+    return local_path
 
 
 # =========================
@@ -116,6 +144,7 @@ def _github_api_url(cfg, path):
     return f"https://api.github.com/repos/{cfg['owner']}/{cfg['repo']}/contents/{safe_path}"
 
 
+@st.cache_data(ttl=300)
 def github_read_file(path):
     """
     Read a file from GitHub repo. Returns bytes or None.
@@ -209,7 +238,11 @@ def load_csv(path, columns):
     # Try GitHub first
     cfg = github_config()
     if cfg:
-        content = github_read_file(path)
+        # repo-relative path for CSV is like "data/referees.csv"
+        rel = path.replace("\\", "/")
+        if not rel.startswith("data/"):
+            rel = f"data/{os.path.basename(rel)}"
+        content = github_read_file(rel)
         if content is not None:
             try:
                 df = pd.read_csv(io.BytesIO(content), dtype=str)
@@ -245,8 +278,12 @@ def save_csv(path, df):
         try:
             buf = io.StringIO()
             df.to_csv(buf, index=False)
+            # repo-relative "data/xxx.csv"
+            rel = path.replace("\\", "/")
+            if not rel.startswith("data/"):
+                rel = f"data/{os.path.basename(rel)}"
             github_write_file(
-                path,
+                rel,
                 buf.getvalue(),
                 f"Update {os.path.basename(path)} via referee app",
             )
@@ -313,35 +350,68 @@ ASSIGN_COLS = [
 ]
 
 
+def _normalize_media_path(v: str) -> str:
+    """
+    Normalize photo_file / passport_file values:
+    - Remove leading "data/" if present
+    - Keep "photos/..." or "passports/..." as is
+    - Keep http URLs as-is (fallback display will handle them)
+    """
+    if v is None:
+        return ""
+    s = str(v).strip()
+    if not s:
+        return ""
+    if s.startswith("data/photos/") or s.startswith("data/passports/"):
+        return s[len("data/") :]
+    return s
+
+
+@st.cache_data
 def load_referees():
     df = load_csv(REFEREES_FILE, REFEREE_COLS)
 
-    # Sync photo & passport files from GitHub if missing locally
+    # Normalize paths for media columns
+    for col in ["photo_file", "passport_file"]:
+        if col in df.columns:
+            df[col] = df[col].apply(_normalize_media_path)
+
+    # Sync photo & passport files from GitHub if missing locally (for internal paths only)
     cfg = github_config()
     if cfg and not df.empty:
         for _, r in df.iterrows():
             for col in ["photo_file", "passport_file"]:
                 rel = r.get(col, "")
-                if isinstance(rel, str) and rel:
-                    local_path = os.path.join(DATA_DIR, rel)
-                    if not os.path.exists(local_path):
-                        remote_path = os.path.join(DATA_DIR, rel).replace("\\", "/")
-                        content = github_read_file(remote_path)
-                        if content is not None:
+                if not isinstance(rel, str) or not rel:
+                    continue
+                # Skip http URLs, handled at display time
+                if rel.startswith("http"):
+                    continue
+
+                local_path = os.path.join(DATA_DIR, rel)  # e.g. data/photos/xxx.jpg
+                if not os.path.exists(local_path):
+                    remote_path = f"data/{rel}".replace("\\", "/")
+                    content = github_read_file(remote_path)
+                    if content is not None:
+                        try:
                             os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                            try:
-                                with open(local_path, "wb") as f:
-                                    f.write(content)
-                            except Exception:
-                                pass
+                            with open(local_path, "wb") as f:
+                                f.write(content)
+                        except Exception:
+                            pass
 
     return df
 
 
 def save_referees(df):
     save_csv(REFEREES_FILE, df)
+    try:
+        load_referees.clear()
+    except Exception:
+        pass
 
 
+@st.cache_data
 def load_events():
     df = load_csv(EVENTS_FILE, EVENT_COLS)
     if not df.empty:
@@ -352,26 +422,43 @@ def load_events():
 
 def save_events(df):
     save_csv(EVENTS_FILE, df)
+    try:
+        load_events.clear()
+    except Exception:
+        pass
 
 
+@st.cache_data
 def load_availability():
     return load_csv(AVAIL_FILE, AVAIL_COLS)
 
 
 def save_availability(df):
     save_csv(AVAIL_FILE, df)
+    try:
+        load_availability.clear()
+    except Exception:
+        pass
 
 
+@st.cache_data
 def load_assignments():
     return load_csv(ASSIGN_FILE, ASSIGN_COLS)
 
 
 def save_assignments(df):
     save_csv(ASSIGN_FILE, df)
+    try:
+        load_assignments.clear()
+    except Exception:
+        pass
 
 
 def referee_display_name(row):
-    return f"{row['first_name']} {row['last_name']}".strip()
+    fn = str(row.get("first_name", "")).strip()
+    ln = str(row.get("last_name", "")).strip()
+    nat = str(row.get("nationality", "")).strip()
+    return f"{fn} {ln} - {nat}".strip()
 
 
 def _parse_date_str(s, fallback):
@@ -392,13 +479,11 @@ def _parse_date_str(s, fallback):
 def init_admin_session():
     """Initialize is_admin flag depending on whether an admin password is configured."""
     if "is_admin" not in st.session_state:
-        # Try to read from secrets, else fallback to hardcoded default
         default_pwd = "avcbeach1234"
         try:
             _ = st.secrets["auth"]["admin_password"]
             st.session_state["is_admin"] = False
         except Exception:
-            # no password configured in secrets → still protect with default
             st.session_state["is_admin"] = False
             st.session_state["admin_default_pwd"] = default_pwd
 
@@ -407,7 +492,6 @@ def admin_login_box():
     """Render admin login / logout controls in sidebar."""
     init_admin_session()
 
-    # Determine password
     default_pwd = "avcbeach1234"
     try:
         admin_pwd = st.secrets["auth"]["admin_password"]
@@ -440,17 +524,16 @@ def require_admin():
 
 
 # =========================
-# PAGE: ADMIN – REFEREES
+# GLOBAL GITHUB TOKEN (FOR MEDIA)
 # =========================
 
-GH_TOKEN = st.secrets["GH_TOKEN"]
+# This must exist in Streamlit secrets
+GH_TOKEN = st.secrets.get("GH_TOKEN", "")
 
-def referee_display_name(row):
-    fn = str(row.get("first_name", "")).strip()
-    ln = str(row.get("last_name", "")).strip()
-    nat = str(row.get("nationality", "")).strip()
-    return f"{fn} {ln} - {nat}".strip()
 
+# =========================
+# PAGE: ADMIN – REFEREES
+# =========================
 
 def page_admin_referees():
     require_admin()
@@ -475,14 +558,13 @@ def page_admin_referees():
 
     st.markdown("Use this page to **add or edit referees and officials**.")
 
-
     # ------------------------------
     # ➕ NEW BUTTON (clear form)
     # ------------------------------
     if st.button("➕ New Referee / Official"):
         st.session_state.new_mode = True
         st.session_state.selected_ref = None
-        st.session_state.ref_form_key += 1     # 💥 FORCE NEW EMPTY FORM
+        st.session_state.ref_form_key += 1
         st.rerun()
 
     # ------------------------------
@@ -556,7 +638,6 @@ def page_admin_referees():
             except Exception as e:
                 st.error(f"Import failed: {e}")
 
-
     # ------------------------------
     # CATEGORY SELECTBOX
     # ------------------------------
@@ -589,7 +670,6 @@ def page_admin_referees():
     if "select_ref_key" not in st.session_state:
         st.session_state.select_ref_key = None
 
-
     sel = st.selectbox(
         "Select referee/official",
         [""] + name_list,
@@ -601,7 +681,7 @@ def page_admin_referees():
         st.session_state.new_mode = False
     else:
         if "selected_ref" not in st.session_state or st.session_state.selected_ref is None:
-        	st.session_state.new_mode = True
+            st.session_state.new_mode = True
 
     # ------------------------------
     # DETERMINE SELECTED ROW
@@ -682,7 +762,7 @@ def page_admin_referees():
                     if row["birthdate"]
                     else date(1990, 1, 1)
                 )
-            except:
+            except Exception:
                 bd_default = date(1990, 1, 1)
 
             birthdate = st.date_input(
@@ -745,7 +825,7 @@ def page_admin_referees():
         submitted = st.form_submit_button("💾 Save")
 
     # ======================
-    # SAVE LOGIC (REWRITTEN CLEAN)
+    # SAVE LOGIC
     # ======================
     if submitted:
 
@@ -764,14 +844,14 @@ def page_admin_referees():
             photo_path = ""
             passport_path = ""
 
-            # Save photo to GitHub
-            if photo_file is not None:
+            # Save photo to GitHub + local, store internal path "photos/<id>.ext"
+            if photo_file is not None and GH_TOKEN:
                 ext = os.path.splitext(photo_file.name)[1]
                 github_path = f"data/photos/{ref_id}{ext}"
                 photo_path = upload_to_github(photo_file.getbuffer(), github_path, GH_TOKEN)
 
-            # Save passport to GitHub
-            if passport_file is not None:
+            # Save passport to GitHub + local
+            if passport_file is not None and GH_TOKEN:
                 ext = os.path.splitext(passport_file.name)[1]
                 github_path = f"data/passports/{ref_id}{ext}"
                 passport_path = upload_to_github(passport_file.getbuffer(), github_path, GH_TOKEN)
@@ -807,7 +887,6 @@ def page_admin_referees():
         # UPDATE REFEREE
         # --------------------------
         else:
-
             match = refs[refs["ref_id"] == row["ref_id"]]
             if match.empty:
                 st.error("Error: Could not find referee to update.")
@@ -819,17 +898,16 @@ def page_admin_referees():
             passport_path = refs.loc[idx, "passport_file"]
 
             # UPDATE PHOTO
-            if photo_file is not None:
+            if photo_file is not None and GH_TOKEN:
                 ext = os.path.splitext(photo_file.name)[1]
                 github_path = f"data/photos/{row['ref_id']}{ext}"
                 photo_path = upload_to_github(photo_file.getbuffer(), github_path, GH_TOKEN)
 
             # UPDATE PASSPORT
-            if passport_file is not None:
+            if passport_file is not None and GH_TOKEN:
                 ext = os.path.splitext(passport_file.name)[1]
                 github_path = f"data/passports/{row['ref_id']}{ext}"
                 passport_path = upload_to_github(passport_file.getbuffer(), github_path, GH_TOKEN)
-
 
             refs.loc[idx] = {
                 "ref_id": row["ref_id"],
@@ -866,7 +944,6 @@ def page_admin_referees():
         st.success("Saved ✔")
         st.rerun()
 
-
     # ======================
     # LIST REFS BY CATEGORY
     # ======================
@@ -896,6 +973,128 @@ def page_admin_referees():
 # =========================
 # PAGE: REFEREE SEARCH (ADMIN ONLY)
 # =========================
+
+def _display_photo(photo_rel: str):
+    """Helper to display photo with local → GitHub → URL fallback."""
+    if not isinstance(photo_rel, str) or not photo_rel.strip():
+        st.caption("No photo uploaded.")
+        return
+
+    s = photo_rel.strip()
+
+    # Case 1: HTTP URL (legacy rows)
+    if s.startswith("http://") or s.startswith("https://"):
+        try:
+            r = requests.get(s, timeout=10)
+            if r.status_code == 200:
+                st.image(r.content, use_container_width=True)
+            else:
+                st.caption("Photo URL saved, but could not be loaded.")
+        except Exception:
+            st.caption("Photo URL saved, but could not be loaded.")
+        return
+
+    # Case 2: internal path "photos/..."
+    local_path = os.path.join(DATA_DIR, s)
+    if os.path.exists(local_path):
+        st.image(local_path, use_container_width=True)
+        return
+
+    # Try fetch from GitHub and cache locally
+    remote_path = f"data/{s}".replace("\\", "/")
+    content = github_read_file(remote_path)
+    if content is not None:
+        try:
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(content)
+            st.image(local_path, use_container_width=True)
+            return
+        except Exception:
+            try:
+                st.image(content, use_container_width=True)
+                return
+            except Exception:
+                pass
+
+    st.caption("Photo path saved, but file not found locally or on GitHub.")
+
+
+def _display_passport(pass_rel: str, is_admin: bool):
+    """Helper to display passport (image/pdf) with local → GitHub → URL fallback."""
+    if not is_admin:
+        st.caption("Passport is private and only visible to administrators.")
+        return
+
+    if not isinstance(pass_rel, str) or not pass_rel.strip():
+        st.caption("No passport uploaded.")
+        return
+
+    s = pass_rel.strip()
+
+    # HTTP URL legacy
+    if s.startswith("http://") or s.startswith("https://"):
+        try:
+            r = requests.get(s, timeout=10)
+            if r.status_code == 200:
+                # Try to infer type
+                ct = r.headers.get("Content-Type", "")
+                data = r.content
+                if "pdf" in ct:
+                    st.download_button(
+                        "Download passport (PDF)",
+                        data=data,
+                        file_name="passport.pdf",
+                        mime="application/pdf",
+                    )
+                else:
+                    st.image(data, caption="Passport image", use_container_width=True)
+            else:
+                st.caption("Passport URL saved, but could not be loaded.")
+        except Exception:
+            st.caption("Passport URL saved, but could not be loaded.")
+        return
+
+    # Internal path "passports/..."
+    local_path = os.path.join(DATA_DIR, s)
+    if not os.path.exists(local_path):
+        # Try GitHub
+        remote_path = f"data/{s}".replace("\\", "/")
+        content = github_read_file(remote_path)
+        if content is not None:
+            try:
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                with open(local_path, "wb") as f:
+                    f.write(content)
+            except Exception:
+                # If we fail to write, keep in memory
+                pass
+
+    if os.path.exists(local_path):
+        ext = os.path.splitext(local_path)[1].lower()
+        try:
+            with open(local_path, "rb") as f:
+                data = f.read()
+            if ext in [".jpg", ".jpeg", ".png"]:
+                st.image(local_path, caption="Passport image", use_container_width=True)
+            elif ext == ".pdf":
+                st.download_button(
+                    "Download passport (PDF)",
+                    data=data,
+                    file_name=os.path.basename(local_path),
+                    mime="application/pdf",
+                )
+            else:
+                st.download_button(
+                    "Download passport file",
+                    data=data,
+                    file_name=os.path.basename(local_path),
+                )
+        except Exception:
+            st.caption("Passport path saved, but file could not be opened.")
+    else:
+        st.caption("Passport path saved, but file not found locally or on GitHub.")
+
 
 def page_referee_search():
     require_admin()
@@ -966,7 +1165,6 @@ def page_referee_search():
         )
 
     with colE:
-        # Type: Indoor / Beach / Both
         type_filter = st.selectbox(
             "Type (Indoor / Beach / Both)",
             ["All"] + sorted([t for t in refs["type"].dropna().unique().tolist() if t]),
@@ -1031,61 +1229,48 @@ def page_referee_search():
     # ====================================
     filtered = refs.copy()
 
-    # Name search
     if search_text:
         filtered = filtered[
             filtered["display"].str.lower().str.contains(search_text)
         ]
 
-    # Nationality multi
     if nationality_multi:
         filtered = filtered[filtered["nationality"].isin(nationality_multi)]
 
-    # Zone multi
     if zone_multi:
         filtered = filtered[filtered["zone"].isin(zone_multi)]
 
-    # Gender
     if gender_filter != "All":
         filtered = filtered[filtered["gender"] == gender_filter]
 
-    # Type
     if type_filter != "All":
         filtered = filtered[filtered["type"] == type_filter]
 
-    # Active
     if active_filter == "Active":
         filtered = filtered[filtered["active"] == "True"]
     elif active_filter == "Inactive":
         filtered = filtered[filtered["active"] == "False"]
 
-    # Referee level multi
     if reflevel_multi:
         filtered = filtered[filtered["ref_level"].isin(reflevel_multi)]
 
-    # CC Role
     if ccrole_filter != "All":
         filtered = filtered[filtered["cc_role"] == ccrole_filter]
 
-    # Course year
     if courseyear_filter != "All":
         filtered = filtered[filtered["course_year"] == courseyear_filter]
 
-    # Shirt size
     if shirt_filter != "All":
         filtered = filtered[filtered["shirt_size"] == shirt_filter]
 
-    # Shorts size
     if shorts_filter != "All":
         filtered = filtered[filtered["shorts_size"] == shorts_filter]
 
-    # Origin airport contains
     if airport_filter:
         filtered = filtered[
             filtered["origin_airport"].fillna("").str.lower().str.contains(airport_filter)
         ]
 
-    # Sort by first name then last name
     filtered = filtered.sort_values(["first_name", "last_name"])
 
     # ====================================
@@ -1182,50 +1367,12 @@ def page_referee_search():
     with colR:
         st.markdown("#### Photo ID")
         photo_rel = prof.get("photo_file", "")
-        if isinstance(photo_rel, str) and photo_rel:
-            photo_path = os.path.join(DATA_DIR, photo_rel)
-            if os.path.exists(photo_path):
-                st.image(photo_path, use_container_width=True)
-            else:
-                st.caption("Photo path saved, but file not found locally.")
-        else:
-            st.caption("No photo uploaded.")
+        _display_photo(photo_rel)
 
         st.markdown("#### Passport (Admin only)")
         is_admin = st.session_state.get("is_admin", False)
-
-        if not is_admin:
-            st.caption("Passport is private and only visible to administrators.")
-        else:
-            pass_rel = prof.get("passport_file", "")
-            if isinstance(pass_rel, str) and pass_rel:
-                pass_path = os.path.join(DATA_DIR, pass_rel)
-                if os.path.exists(pass_path):
-                    ext = os.path.splitext(pass_path)[1].lower()
-                    try:
-                        with open(pass_path, "rb") as f:
-                            data = f.read()
-                        if ext in [".jpg", ".jpeg", ".png"]:
-                            st.image(pass_path, caption="Passport image", use_container_width=True)
-                        elif ext == ".pdf":
-                            st.download_button(
-                                "Download passport (PDF)",
-                                data=data,
-                                file_name=os.path.basename(pass_path),
-                                mime="application/pdf",
-                            )
-                        else:
-                            st.download_button(
-                                "Download passport file",
-                                data=data,
-                                file_name=os.path.basename(pass_path),
-                            )
-                    except Exception:
-                        st.caption("Passport path saved, but file could not be opened.")
-                else:
-                    st.caption("Passport path saved, but file not found locally.")
-            else:
-                st.caption("No passport uploaded.")
+        pass_rel = prof.get("passport_file", "")
+        _display_passport(pass_rel, is_admin)
 
     # ====================================
     # ✏️ EDIT REFEREE INFORMATION (INLINE)
@@ -1245,7 +1392,6 @@ def page_referee_search():
                 index=GENDERS.index(prof["gender"])
             )
 
-            # Nationality list sorted
             NOC_LIST = sorted([
                "", "AFG","ASA","AUS","BAN","BHU","BRN","BRU","CAM","CHN","COK","FIJ","FSM","GUM",
                "HKG","INA","IND","IRI","IRQ","JOR","JPN","KAZ","KGZ","KSA","KIR","KOR","KUW","LAO","LBN",
@@ -1267,7 +1413,7 @@ def page_referee_search():
             )
 
             birthdate = st.text_input("Birthdate (YYYY-MM-DD)", prof["birthdate"])
-            fivb_id = st.text_input("FIVB ID", value=prof["fivb_id"])         
+            fivb_id = st.text_input("FIVB ID", value=prof["fivb_id"])
             email = st.text_input("Email", prof["email"])
             phone = st.text_input("Phone", prof["phone"])
 
@@ -1327,27 +1473,21 @@ def page_referee_search():
         refs_all = load_referees()
         idx = refs_all[refs_all["ref_id"] == prof["ref_id"]].index[0]
 
-        # Keep old values unless new file uploaded
         photo_path = refs_all.loc[idx, "photo_file"]
         passport_path = refs_all.loc[idx, "passport_file"]
 
-        # Save new photo
-        if photo_upload is not None:
+        # Save new photo → GitHub + local, store internal "photos/<id>.ext"
+        if photo_upload is not None and GH_TOKEN:
             ext = os.path.splitext(photo_upload.name)[1]
-            new_photo_file = f"{prof['ref_id']}{ext}"
-            photo_path = os.path.join("photos", new_photo_file)
-            with open(os.path.join(DATA_DIR, photo_path), "wb") as f:
-                f.write(photo_upload.getbuffer())
+            github_path = f"data/photos/{prof['ref_id']}{ext}"
+            photo_path = upload_to_github(photo_upload.getbuffer(), github_path, GH_TOKEN)
 
-        # Save new passport
-        if passport_upload is not None:
+        # Save new passport → GitHub + local
+        if passport_upload is not None and GH_TOKEN:
             ext = os.path.splitext(passport_upload.name)[1]
-            new_pass_file = f"{prof['ref_id']}{ext}"
-            passport_path = os.path.join("passports", new_pass_file)
-            with open(os.path.join(DATA_DIR, passport_path), "wb") as f:
-                f.write(passport_upload.getbuffer())
+            github_path = f"data/passports/{prof['ref_id']}{ext}"
+            passport_path = upload_to_github(passport_upload.getbuffer(), github_path, GH_TOKEN)
 
-        # Save all fields
         refs_all.loc[idx, "first_name"] = fn.strip()
         refs_all.loc[idx, "last_name"] = ln.strip()
         refs_all.loc[idx, "gender"] = gender
@@ -1397,13 +1537,13 @@ def page_referee_search():
             refs_all = refs_all[refs_all["ref_id"] != prof["ref_id"]]
             save_referees(refs_all)
 
-            # Delete photo
+            # Delete photo (local only, GitHub kept)
             if prof.get("photo_file"):
                 fp = os.path.join(DATA_DIR, prof["photo_file"])
                 if os.path.exists(fp):
                     os.remove(fp)
 
-            # Delete passport
+            # Delete passport (local only)
             if prof.get("passport_file"):
                 fp = os.path.join(DATA_DIR, prof["passport_file"])
                 if os.path.exists(fp):
@@ -1425,13 +1565,11 @@ def page_referee_search():
 
     avail = load_availability()
 
-    # Filter only this referee
     my_avail = avail[avail["ref_id"] == prof["ref_id"]].copy()
 
     if my_avail.empty:
         st.caption("No availability submissions from this referee yet.")
     else:
-        # Load event names
         events = load_events()
 
         if not events.empty:
@@ -1444,10 +1582,8 @@ def page_referee_search():
                 "location"
             ]]
 
-            # merge to show readable details
             my_avail = my_avail.merge(ev_small, on="event_id", how="left")
 
-        # rename columns to readable names
         rename_map = {
             "season": "Season",
             "event_name": "Event",
@@ -1463,7 +1599,6 @@ def page_referee_search():
             if old in my_avail.columns:
                 my_avail = my_avail.rename(columns={old: new})
 
-        # columns we want (only if exist)
         preferred_cols = [
             "Season",
             "Event",
@@ -1477,7 +1612,6 @@ def page_referee_search():
 
         display_cols = [c for c in preferred_cols if c in my_avail.columns]
 
-        # sorting: season + start date if available
         sort_cols = [c for c in ["Season", "Start"] if c in my_avail.columns]
         if sort_cols:
             my_avail = my_avail.sort_values(sort_cols)
@@ -1610,6 +1744,7 @@ def page_referee_search():
                         st.success("Nomination removed ✅")
                         st.rerun()
 
+
 # =========================
 # PAGE: ADMIN – EVENTS
 # =========================
@@ -1640,9 +1775,6 @@ def page_admin_events():
             "Destination airport (e.g., BKK, DOH)", value=""
         )
 
-        # ============================
-        # TOGGLE: DATE NOT CONFIRMED
-        # ============================
         date_not_confirmed = st.checkbox("📅 Dates NOT confirmed yet")
 
         if not date_not_confirmed:
@@ -1650,16 +1782,16 @@ def page_admin_events():
 
             c4, c5 = st.columns(2)
             with c4:
-                start_date = st.date_input("Start date", value=date.today())
-                arrival_date = st.date_input("Arrival date", value=start_date)
+                start_date_v = st.date_input("Start date", value=date.today())
+                arrival_date_v = st.date_input("Arrival date", value=start_date_v)
             with c5:
-                end_date = st.date_input("End date", value=date.today())
-                departure_date = st.date_input("Departure date", value=end_date)
+                end_date_v = st.date_input("End date", value=date.today())
+                departure_date_v = st.date_input("Departure date", value=end_date_v)
         else:
-            start_date = None
-            end_date = None
-            arrival_date = None
-            departure_date = None
+            start_date_v = None
+            end_date_v = None
+            arrival_date_v = None
+            departure_date_v = None
 
         requires_availability = st.selectbox(
             "Requires Availability?",
@@ -1673,21 +1805,21 @@ def page_admin_events():
         if not ev_name.strip():
             st.error("Event name is required.")
         else:
-            if start_date and end_date and end_date < start_date:
+            if start_date_v and end_date_v and end_date_v < start_date_v:
                 st.error("End date must be on or after start date.")
-            elif arrival_date and departure_date and departure_date < arrival_date:
+            elif arrival_date_v and departure_date_v and departure_date_v < arrival_date_v:
                 st.error("Departure date must be on or after arrival date.")
             else:
                 new_ev = pd.DataFrame([{
                     "event_id": new_id(),
                     "season": season.strip(),
-                    "start_date": start_date.isoformat() if start_date else "",
-                    "end_date": end_date.isoformat() if end_date else "",
+                    "start_date": start_date_v.isoformat() if start_date_v else "",
+                    "end_date": end_date_v.isoformat() if end_date_v else "",
                     "event_name": ev_name.strip(),
                     "location": location.strip(),
                     "destination_airport": destination_airport.strip(),
-                    "arrival_date": arrival_date.isoformat() if arrival_date else "",
-                    "departure_date": departure_date.isoformat() if departure_date else "",
+                    "arrival_date": arrival_date_v.isoformat() if arrival_date_v else "",
+                    "departure_date": departure_date_v.isoformat() if departure_date_v else "",
                     "requires_availability": requires_availability,
                 }])
 
@@ -1709,7 +1841,7 @@ def page_admin_events():
         df_disp = df_disp.sort_values(["season", "start_date", "event_name"])
         st.dataframe(df_disp.drop(columns=["event_id"]), use_container_width=True)
 
-        # ---------------------------------------------
+    # ---------------------------------------------
     # EDIT / DELETE EVENT
     # ---------------------------------------------
     if not events.empty:
@@ -1731,7 +1863,6 @@ def page_admin_events():
             ev_id = id_map[sel_label]
             ev = events[events["event_id"] == ev_id].iloc[0]
 
-            # Parse dates safely (may be blank)
             sd_val = _parse_date_str(ev.get("start_date", ""), date.today())
             ed_val = _parse_date_str(ev.get("end_date", ""), date.today())
             arr_val = _parse_date_str(ev.get("arrival_date", ""), sd_val)
@@ -1740,7 +1871,6 @@ def page_admin_events():
             st.markdown("### Edit Event")
 
             with st.form("edit_event_form"):
-                # Event basics
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     season_edit = st.text_input("Season", value=str(ev["season"]))
@@ -1754,13 +1884,10 @@ def page_admin_events():
                     value=str(ev.get("destination_airport", "")),
                 )
 
-                # ============================
-                # DATE NOT CONFIRMED TOGGLE
-                # ============================
                 date_not_confirmed_edit = st.checkbox(
                     "📅 Dates NOT confirmed yet",
                     value=(
-                        not ev.get("start_date") 
+                        not ev.get("start_date")
                         and not ev.get("end_date")
                         and not ev.get("arrival_date")
                         and not ev.get("departure_date")
@@ -1826,12 +1953,10 @@ def page_admin_events():
                 events = events[events["event_id"] != ev_id]
                 save_events(events)
 
-                # Remove linked availability
                 avail = load_availability()
                 avail = avail[avail["event_id"] != ev_id]
                 save_availability(avail)
 
-                # Remove linked assignments
                 assignments = load_assignments()
                 assignments = assignments[assignments["event_id"] != ev_id]
                 save_assignments(assignments)
@@ -1865,9 +1990,6 @@ This form is **private** — only you and administrators can view your submissio
 """
     )
 
-    # =====================================================
-    # STEP 1 — CATEGORY SELECTION (Referee / Control Committee)
-    # =====================================================
     st.markdown("### 1️⃣ Select your category")
 
     category = st.selectbox(
@@ -1880,7 +2002,6 @@ This form is **private** — only you and administrators can view your submissio
         st.info("Please choose your category above.")
         return
 
-    # Filter referees matching category
     refs_filtered = refs[refs["position_type"] == category].copy()
     if refs_filtered.empty:
         st.error(f"No {category} found in database.")
@@ -1888,15 +2009,11 @@ This form is **private** — only you and administrators can view your submissio
 
     refs_filtered = refs_filtered.sort_values(["first_name", "last_name"])
 
-    # Show only ID, Name (NAT)
     refs_filtered["display"] = refs_filtered.apply(
         lambda r: f"{r['first_name']} {r['last_name']} ({r['nationality']})",
         axis=1
     )
 
-    # =====================================================
-    # STEP 2 — REFEREE SELECT + IDENTITY VERIFY
-    # =====================================================
     st.markdown("### 2️⃣ Select your name")
 
     ref_label = st.selectbox(
@@ -1929,9 +2046,6 @@ This form is **private** — only you and administrators can view your submissio
         st.error("Birthdate does not match our records. Please check and try again.")
         return
 
-    # =====================================================
-    # STEP 3 — SELECT SEASON
-    # =====================================================
     season_list = sorted(events["season"].unique())
     st.markdown("### 4️⃣ Choose the season")
 
@@ -1944,7 +2058,6 @@ This form is **private** — only you and administrators can view your submissio
         st.info("No events for this season require availability submissions.")
         return
 
-    # Load previously saved availability
     avail_ref = avail[(avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season))].copy()
     avail_map = {}
     if not avail_ref.empty:
@@ -1955,9 +2068,6 @@ This form is **private** — only you and administrators can view your submissio
                 "airfare_estimate": r.get("airfare_estimate", "")
             }
 
-    # =====================================================
-    # STEP 4 — EVENT AVAILABILITY INPUT
-    # =====================================================
     st.markdown(f"### 5️⃣ Availability for **Season {selected_season}**")
 
     per_event_inputs = []
@@ -1971,7 +2081,6 @@ This form is **private** — only you and administrators can view your submissio
         default_available = defaults["available"]
         default_airfare = defaults["airfare_estimate"]
 
-        # Event box
         st.markdown("---")
         st.markdown(f"#### 📌 {ev_name} ({ev['location']})")
 
@@ -1985,9 +2094,8 @@ This form is **private** — only you and administrators can view your submissio
         with col3:
             st.write(f"**Destination airport:** {ev.get('destination_airport', '')}")
 
-        # Inputs
         available = st.checkbox(
-            f"Available for this event",
+            "Available for this event",
             value=default_available,
             key=f"avail_{ev_id}"
         )
@@ -2004,9 +2112,6 @@ This form is **private** — only you and administrators can view your submissio
             "airfare_estimate": airfare_estimate.strip(),
         })
 
-    # =====================================================
-    # STEP 5 — SUBMIT
-    # =====================================================
     if st.button("📨 Submit availability"):
         avail = avail[~((avail["ref_id"] == ref_id) & (avail["season"] == str(selected_season)))]
         now_str = datetime.utcnow().isoformat()
@@ -2029,9 +2134,6 @@ This form is **private** — only you and administrators can view your submissio
         save_availability(avail)
         st.success("Thank you! Your availability has been recorded. ✅")
 
-    # =====================================================
-    # STEP 6 — REFEREE SUMMARY
-    # =====================================================
     st.markdown("### 📄 Your saved availability (summary)")
     avail_me = load_availability()
     avail_me = avail_me[(avail_me["ref_id"] == ref_id) & (avail_me["season"] == str(selected_season))]
@@ -2071,26 +2173,23 @@ def page_admin_availability():
         st.info("No data available yet.")
         return
 
-    # Build season selector
     seasons = sorted(events["season"].unique())
     selected_season = st.selectbox("Select season", seasons)
 
-    # Filter by season
     season_events = events[events["season"] == selected_season]
     season_avail = avail[avail["season"] == str(selected_season)]
     season_assign = assignments.copy()
 
-    # Build merged base table
     refs_small = refs[["ref_id", "first_name", "last_name", "nationality", "zone", "position_type"]]
     ev_small = season_events[["event_id", "season", "event_name", "start_date", "end_date", "location"]]
 
     merged = season_avail.merge(refs_small, on="ref_id", how="left")
     merged = merged.merge(ev_small, on=["event_id", "season"], how="left")
 
-    # Add nominated rows not present in availability
     nominated_extra = []
     for _, a in season_assign.iterrows():
-        if (a["ref_id"], a["event_id"]) not in zip(merged["ref_id"], merged["event_id"]):
+        key_pair = (a["ref_id"], a["event_id"])
+        if key_pair not in set(zip(merged["ref_id"], merged["event_id"])):
             ref_row = refs_small[refs_small["ref_id"] == a["ref_id"]]
             ev_row = ev_small[ev_small["event_id"] == a["event_id"]]
             if not ref_row.empty and not ev_row.empty:
@@ -2121,7 +2220,6 @@ def page_admin_availability():
         st.info("No availability or nominations found for this season.")
         return
 
-    # Compute status
     assign_pairs = set(zip(season_assign["ref_id"], season_assign["event_id"]))
 
     def get_status(row):
@@ -2168,7 +2266,6 @@ def page_admin_availability():
             ["All", "Nominated", "Available", "Not Available", "Unknown"]
         )
 
-    # Apply filters
     df = merged.copy()
 
     if event_filter != "All":
@@ -2207,7 +2304,6 @@ def page_admin_availability():
     st.dataframe(df[view_cols], use_container_width=True)
 
 
-
 # =========================
 # MAIN
 # =========================
@@ -2215,8 +2311,8 @@ def page_admin_availability():
 def main():
     st.sidebar.title("🏖️ Beach Referee DB")
 
-    admin_login_box()
     init_admin_session()
+    admin_login_box()
     is_admin = st.session_state.get("is_admin", False)
 
     if is_admin:
