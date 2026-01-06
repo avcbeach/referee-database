@@ -287,12 +287,14 @@ def save_csv(path, df):
                 buf.getvalue(),
                 f"Update {os.path.basename(path)} via referee app",
             )
+        except Exception:
+            pass
 
     # 🔧 Clear GitHub read cache so website shows latest data            
-            try:
-                github_read_file.clear()
-            except Exception:
-                pass
+    try:
+        github_read_file.clear()
+    except Exception:
+        pass
 
 
 # =========================
