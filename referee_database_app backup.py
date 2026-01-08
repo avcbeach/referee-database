@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import os
 import uuid
 import io
@@ -333,9 +333,7 @@ EVENT_COLS = [
     "event_name",
     "location",
     "destination_airport",
-    "arrival_date_td",   # Technical Delegate / Control Committee (-3 days)
-    "arrival_date_ref",  # Referees & Referee Coaches (-2 days)
-    "arrival_date",      # legacy / fallback
+    "arrival_date",
     "departure_date",
     "requires_availability",
 ]
@@ -423,7 +421,7 @@ def save_referees(df):
 def load_events():
     df = load_csv(EVENTS_FILE, EVENT_COLS)
     if not df.empty:
-        for col in ["start_date", "end_date", "arrival_date_td", "arrival_date_ref", "arrival_date", "departure_date"]:
+        for col in ["start_date", "end_date", "arrival_date", "departure_date"]:
             df[col] = pd.to_datetime(df[col], errors="coerce").dt.date.astype(str)
     return df
 
@@ -1791,17 +1789,13 @@ def page_admin_events():
             c4, c5 = st.columns(2)
             with c4:
                 start_date_v = st.date_input("Start date", value=date.today())
-                arrival_td_v = st.date_input("Arrival date (Technical Delegate) -3", value=start_date_v - timedelta(days=3))
-                arrival_ref_v = st.date_input("Arrival date (Referees / Referee Coach) -2", value=start_date_v - timedelta(days=2))
-                arrival_date_v = arrival_ref_v  # legacy / fallback
+                arrival_date_v = st.date_input("Arrival date", value=start_date_v)
             with c5:
                 end_date_v = st.date_input("End date", value=date.today())
                 departure_date_v = st.date_input("Departure date", value=end_date_v)
         else:
             start_date_v = None
             end_date_v = None
-            arrival_td_v = None
-            arrival_ref_v = None
             arrival_date_v = None
             departure_date_v = None
 
@@ -1819,7 +1813,7 @@ def page_admin_events():
         else:
             if start_date_v and end_date_v and end_date_v < start_date_v:
                 st.error("End date must be on or after start date.")
-            elif departure_date_v and (arrival_td_v or arrival_ref_v or arrival_date_v) and departure_date_v < min(d for d in [arrival_td_v, arrival_ref_v, arrival_date_v] if d):
+            elif arrival_date_v and departure_date_v and departure_date_v < arrival_date_v:
                 st.error("Departure date must be on or after arrival date.")
             else:
                 new_ev = pd.DataFrame([{
@@ -1830,9 +1824,7 @@ def page_admin_events():
                     "event_name": ev_name.strip(),
                     "location": location.strip(),
                     "destination_airport": destination_airport.strip(),
-                    "arrival_date_td": arrival_td_v.isoformat() if arrival_td_v else "",
-                    "arrival_date_ref": arrival_ref_v.isoformat() if arrival_ref_v else "",
-                    "arrival_date": (arrival_ref_v.isoformat() if arrival_ref_v else (arrival_td_v.isoformat() if arrival_td_v else "")),
+                    "arrival_date": arrival_date_v.isoformat() if arrival_date_v else "",
                     "departure_date": departure_date_v.isoformat() if departure_date_v else "",
                     "requires_availability": requires_availability,
                 }])
@@ -1879,23 +1871,7 @@ def page_admin_events():
 
             sd_val = _parse_date_str(ev.get("start_date", ""), date.today())
             ed_val = _parse_date_str(ev.get("end_date", ""), date.today())
-            legacy_arr_val = _parse_date_str(ev.get("arrival_date", ""), sd_val)
-
-            arr_td_val = _parse_date_str(
-                ev.get("arrival_date_td", ""),
-                (sd_val - timedelta(days=3)) if sd_val else date.today()
-            )
-            arr_ref_val = _parse_date_str(
-                ev.get("arrival_date_ref", ""),
-                (sd_val - timedelta(days=2)) if sd_val else date.today()
-            )
-
-            # Backward compatibility: if older rows only have arrival_date, reuse it
-            if not str(ev.get("arrival_date_td", "")).strip():
-                arr_td_val = legacy_arr_val
-            if not str(ev.get("arrival_date_ref", "")).strip():
-                arr_ref_val = legacy_arr_val
-
+            arr_val = _parse_date_str(ev.get("arrival_date", ""), sd_val)
             dep_val = _parse_date_str(ev.get("departure_date", ""), ed_val)
 
             st.markdown("### Edit Event")
@@ -1919,8 +1895,6 @@ def page_admin_events():
                     value=(
                         not ev.get("start_date")
                         and not ev.get("end_date")
-                        and not ev.get("arrival_date_td")
-                        and not ev.get("arrival_date_ref")
                         and not ev.get("arrival_date")
                         and not ev.get("departure_date")
                     )
@@ -1932,16 +1906,13 @@ def page_admin_events():
                     c4, c5 = st.columns(2)
                     with c4:
                         sd_edit = st.date_input("Start date", value=sd_val)
-                        arr_td_edit = st.date_input("Arrival date (Technical Delegate) -3", value=arr_td_val)
-                        arr_ref_edit = st.date_input("Arrival date (Referees / Referee Coach) -2", value=arr_ref_val)
+                        arr_edit = st.date_input("Arrival date", value=arr_val)
                     with c5:
                         ed_edit = st.date_input("End date", value=ed_val)
                         dep_edit = st.date_input("Departure date", value=dep_val)
                 else:
                     sd_edit = None
                     ed_edit = None
-                    arr_td_edit = None
-                    arr_ref_edit = None
                     arr_edit = None
                     dep_edit = None
 
@@ -1958,7 +1929,7 @@ def page_admin_events():
                     st.error("Event name is required.")
                 elif sd_edit and ed_edit and ed_edit < sd_edit:
                     st.error("End date must be on or after start date.")
-                elif dep_edit and (arr_td_edit or arr_ref_edit) and dep_edit < min(d for d in [arr_td_edit, arr_ref_edit] if d):
+                elif arr_edit and dep_edit and dep_edit < arr_edit:
                     st.error("Departure date must be on or after arrival date.")
                 else:
                     idx = events[events["event_id"] == ev_id].index[0]
@@ -1970,10 +1941,7 @@ def page_admin_events():
 
                     events.loc[idx, "start_date"] = sd_edit.isoformat() if sd_edit else ""
                     events.loc[idx, "end_date"] = ed_edit.isoformat() if ed_edit else ""
-                    events.loc[idx, "arrival_date_td"] = arr_td_edit.isoformat() if arr_td_edit else ""
-                    events.loc[idx, "arrival_date_ref"] = arr_ref_edit.isoformat() if arr_ref_edit else ""
-                    # keep legacy arrival_date synced to referee arrival (fallback for older logic)
-                    events.loc[idx, "arrival_date"] = events.loc[idx, "arrival_date_ref"]
+                    events.loc[idx, "arrival_date"] = arr_edit.isoformat() if arr_edit else ""
                     events.loc[idx, "departure_date"] = dep_edit.isoformat() if dep_edit else ""
 
                     events.loc[idx, "requires_availability"] = req_edit
@@ -2064,7 +2032,6 @@ This form is **private** — only you and administrators can view your submissio
         return
 
     ref_row = refs_filtered[refs_filtered["display"] == ref_label].iloc[0]
-    cc_role = str(ref_row.get("cc_role", "")).strip()
     ref_id = ref_row["ref_id"]
     birth_on_file = str(ref_row.get("birthdate", "")).strip()
 
@@ -2128,13 +2095,7 @@ This form is **private** — only you and administrators can view your submissio
             st.write(f"**Start date:** {ev.get('start_date', '')}")
             st.write(f"**End date:** {ev.get('end_date', '')}")
         with col2:
-            # Show different arrival dates depending on category/role
-            if category == "Control Committee" and cc_role in ["Technical Delegate", "Both"]:
-                arrival_show = ev.get("arrival_date_td", "") or ev.get("arrival_date", "")
-                st.write(f"**Arrival date (TD -3):** {arrival_show}")
-            else:
-                arrival_show = ev.get("arrival_date_ref", "") or ev.get("arrival_date", "")
-                st.write(f"**Arrival date (Ref/RC -2):** {arrival_show}")
+            st.write(f"**Arrival date:** {ev.get('arrival_date', '')}")
             st.write(f"**Departure date:** {ev.get('departure_date', '')}")
         with col3:
             st.write(f"**Destination airport:** {ev.get('destination_airport', '')}")
