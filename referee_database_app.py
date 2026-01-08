@@ -2129,9 +2129,18 @@ This form is **private** — only you and administrators can view your submissio
             st.write(f"**End date:** {ev.get('end_date', '')}")
         with col2:
             # Show different arrival dates depending on category/role
-            if category == "Control Committee" and cc_role in ["Technical Delegate", "Both"]:
-                arrival_show = ev.get("arrival_date_td", "") or ev.get("arrival_date", "")
-                st.write(f"**Arrival date (TD -3):** {arrival_show}")
+            if category == "Control Committee":
+                if cc_role == "Both":
+                    arrival_td = ev.get("arrival_date_td", "") or ev.get("arrival_date", "")
+                    arrival_ref = ev.get("arrival_date_ref", "") or ev.get("arrival_date", "")
+                    st.write(f"**Arrival date (TD -3):** {arrival_td}")
+                    st.write(f"**Arrival date (Ref/RC -2):** {arrival_ref}")
+                elif cc_role == "Technical Delegate":
+                    arrival_show = ev.get("arrival_date_td", "") or ev.get("arrival_date", "")
+                    st.write(f"**Arrival date (TD -3):** {arrival_show}")
+                else:  # Referee Coach or blank
+                    arrival_show = ev.get("arrival_date_ref", "") or ev.get("arrival_date", "")
+                    st.write(f"**Arrival date (Ref/RC -2):** {arrival_show}")
             else:
                 arrival_show = ev.get("arrival_date_ref", "") or ev.get("arrival_date", "")
                 st.write(f"**Arrival date (Ref/RC -2):** {arrival_show}")
