@@ -5,7 +5,7 @@ event_id,season,start_date,end_date,event_name,location,destination_airport,arri
 8e68d30d-fd68-43ef-bcb1-31fbaa280e19,2026,2026-06-04,2026-06-07,AVC Beach Tour 2nd Pingtung Open,"Pingtung, Chinese Taipei",KHH,2026-06-02,2026-06-08,Yes
 8721c1a4-0177-4160-ba96-9667d9a8324c,2026,2026-06-11,2026-06-14,AVC Beach Tour Jizzax Open,"Jizzax, Uzbekistan",TAS,2026-06-09,2026-06-15,Yes
 af5cf5ea-1fe3-4fa1-af56-fc50c7cc317a,2026,NaT,NaT,Asian U18 Beach Volleyball Championships,TBD,,NaT,NaT,Yes
-b1e3b484-b318-40a2-b678-021799031979,2026,2026-06-18,2026-06-21,AVC Beach Tour Yunyang Open,China,CKG,2026-06-16,2026-06-22,Yes
+b1e3b484-b318-40a2-b678-021799031979,2026,2026-06-18,2026-06-21,AVC Beach Tour Yunyang Open,"Chongqing, China",CKG,2026-06-16,2026-06-22,Yes
 7fd80f7b-5807-4bac-951c-0aa0b5270d20,2026,2026-09-18,2026-10-03,20th Asian Games,"Aichi-Nagoya, Japan",NGO,2026-09-20,2026-10-04,No
 5dd7fee9-aeea-47aa-9d6e-7304d555e1e0,2026,NaT,NaT,2026 Asian Senior Beach Volleyball Championships,TBD,,NaT,NaT,Yes
 2bac9322-338c-473b-a88e-bd0b0ac6d150,2026,2026-04-06,2026-04-09,AVC Beach Tour Raja Ampat Open,"Raja Ampat, INA",SOQ,2026-04-04,2026-04-10,Yes
